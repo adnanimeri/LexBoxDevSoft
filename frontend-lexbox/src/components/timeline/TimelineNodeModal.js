@@ -37,19 +37,17 @@ const TimelineNodeModal = ({ isOpen, onClose, node, dossierId, mode = 'edit' }) 
   });
 
   // Update timeline node mutation
-  const updateNodeMutation = useMutation(
-    (nodeData) => timelineService.updateTimelineNode(node.id, nodeData),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['timeline', dossierId]);
-        showSuccess('Timeline activity updated successfully');
-        onClose();
-      },
-      onError: (error) => {
-        showError('Failed to update timeline activity');
-      }
-    }
-  );
+const updateNodeMutation = useMutation({
+  mutationFn: (nodeData) => timelineService.updateTimelineNode(node.id, nodeData),
+  onSuccess: () => {
+    queryClient.invalidateQueries(['timeline', dossierId]);
+    showSuccess('Timeline activity updated successfully');
+    onClose();
+  },
+  onError: (error) => {
+    showError('Failed to update timeline activity');
+  }
+});
 
   /**
    * Handle form submission

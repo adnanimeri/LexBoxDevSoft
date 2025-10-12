@@ -43,15 +43,22 @@ const ClientDetails = () => {
   const queryClient = useQueryClient();
 
   // Fetch client details
-  const { data: client, isLoading: clientLoading, error: clientError } = useQuery(
+  /*const { data: client, isLoading: clientLoading, error: clientError } = useQuery(
     ['client', clientId],
     () => clientService.getClient(clientId),
     {
       staleTime: 60000 // 1 minute
     }
-  );
+  );*/
 
-  // Fetch client timeline
+// Fetch client timeline
+  const { data: client, isLoading: clientLoading, error: clientError } = useQuery({
+  queryKey: ['client', clientId],
+  queryFn: () => clientService.getClient(clientId),
+  staleTime: 60000
+});
+
+ /* // Fetch client timeline
   const { data: timeline, isLoading: timelineLoading } = useQuery(
     ['timeline', client?.dossier?.id],
     () => client?.dossier?.id ? timelineService.getTimeline(client.dossier.id) : null,
@@ -59,10 +66,31 @@ const ClientDetails = () => {
       enabled: !!client?.dossier?.id,
       staleTime: 30000 // 30 seconds
     }
-  );
+  );*/
+// Fetch client timeline
+const { data: timeline, isLoading: timelineLoading } = useQuery({
+  queryKey: ['timeline', client?.dossier?.id],
+  queryFn: () => client?.dossier?.id ? timelineService.getTimeline(client.dossier.id) : null,
+  enabled: !!client?.dossier?.id,
+  staleTime: 30000
+});
+
 
   // Assign dossier number mutation
-  const assignDossierMutation = useMutation(
+const assignDossierMutation = useMutation({
+  mutationFn: ({ clientId, dossierNumber }) => clientService.assignDossierNumber(clientId, dossierNumber),
+  onSuccess: () => {
+    queryClient.invalidateQueries(['client', clientId]);
+    showSuccess('Dossier number assigned successfully');
+    setShowDossierModal(false);
+  },
+  onError: (error) => {
+    showError('Failed to assign dossier number');
+  }
+});
+
+  //old 
+  /*const assignDossierMutation = useMutation(
     ({ clientId, dossierNumber }) => clientService.assignDossierNumber(clientId, dossierNumber),
     {
       onSuccess: () => {
@@ -74,7 +102,7 @@ const ClientDetails = () => {
         showError('Failed to assign dossier number');
       }
     }
-  );
+  );*/
 
   if (clientLoading) {
     return (
