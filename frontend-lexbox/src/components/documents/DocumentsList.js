@@ -39,28 +39,24 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   const queryClient = useQueryClient();
 
   // Fetch documents
-  const { data: documents, isLoading, error } = useQuery(
-    ['documents', dossierId],
-    () => dossierId ? documentService.getDocuments(dossierId) : [],
-    {
-      enabled: !!dossierId,
-      staleTime: 60000 // 1 minute
-    }
-  );
+ const { data: documents, isLoading, error } = useQuery({
+  queryKey: ['documents', dossierId],
+  queryFn: () => dossierId ? documentService.getDocuments(dossierId) : [],
+  enabled: !!dossierId,
+  staleTime: 60000
+});
 
   // Delete document mutation
-  const deleteDocumentMutation = useMutation(
-    (documentId) => documentService.deleteDocument(documentId),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['documents', dossierId]);
-        showSuccess('Document deleted successfully');
-      },
-      onError: () => {
-        showError('Failed to delete document');
-      }
-    }
-  );
+const deleteDocumentMutation = useMutation({
+  mutationFn: (documentId) => documentService.deleteDocument(documentId),
+  onSuccess: () => {
+    queryClient.invalidateQueries(['documents', dossierId]);
+    showSuccess('Document deleted successfully');
+  },
+  onError: () => {
+    showError('Failed to delete document');
+  }
+});
 
   /**
    * Get file type icon
@@ -139,15 +135,24 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   // Get unique categories for filter
   const categories = [...new Set(documents?.map(doc => doc.document_category).filter(Boolean))] || [];
 
-  if (!dossierId) {
-    return (
-      <div className="text-center py-12 text-gray-500">
-        <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-        <p>No dossier assigned</p>
-        <p className="text-sm">Documents will be available after dossier assignment</p>
+ if (!dossierId) {
+  return (
+    <div className="text-center py-12">
+      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+      <p className="text-lg font-medium text-gray-700 mb-2">
+        No Dossier Assigned to This Client
+      </p>
+      <p className="text-sm text-gray-500 mb-4">
+        Documents can only be uploaded after a dossier number has been assigned.
+      </p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+        <p className="text-sm text-blue-800">
+          💡 To upload documents, first assign a dossier number to this client from the client details page.
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (isLoading) {
     return (
@@ -213,15 +218,34 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
       </div>
 
       {/* Documents grid/list */}
-      {filteredDocuments.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+       {filteredDocuments.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>
-            {searchTerm || categoryFilter !== 'all' 
-              ? 'No documents match your search criteria' 
-              : 'No documents uploaded yet'
-            }
-          </p>
+          {!dossierId ? (
+            <>
+              <p className="text-lg font-medium text-gray-700">No Dossier Assigned</p>
+              <p className="text-sm mt-2">Documents will be available after dossier number is assigned to this client</p>
+            </>
+          ) : searchTerm || categoryFilter !== 'all' ? (
+            <>
+              <p className="text-lg font-medium text-gray-700">No Matching Documents</p>
+              <p className="text-sm mt-2">No documents match your search criteria for this dossier</p>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setCategoryFilter('all');
+                }}
+                className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+              >
+                Clear filters
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-medium text-gray-700">No Documents for This Dossier</p>
+              <p className="text-sm mt-2">No documents have been uploaded for this dossier yet</p>
+            </>
+          )}
           {canUpload && hasPermission('documents:create') && !searchTerm && categoryFilter === 'all' && (
             <button
               onClick={() => setShowUploadModal(true)}

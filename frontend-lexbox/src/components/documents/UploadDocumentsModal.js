@@ -26,19 +26,17 @@ const UploadDocumentsModal = ({ isOpen, onClose, dossierId }) => {
   const queryClient = useQueryClient();
 
   // Upload documents mutation
-  const uploadMutation = useMutation(
-    ({ files, metadata }) => documentService.uploadDocuments(dossierId, files, metadata),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['documents', dossierId]);
-        showSuccess(`${files.length} document(s) uploaded successfully`);
-        handleClose();
-      },
-      onError: (error) => {
-        showError('Failed to upload documents');
-      }
-    }
-  );
+const uploadMutation = useMutation({
+  mutationFn: ({ files, metadata }) => documentService.uploadDocuments(dossierId, files, metadata),
+  onSuccess: () => {
+    queryClient.invalidateQueries(['documents', dossierId]);
+    showSuccess(`${files.length} document(s) uploaded successfully`);
+    handleClose();
+  },
+  onError: (error) => {
+    showError('Failed to upload documents');
+  }
+});
 
   // Dropzone configuration
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

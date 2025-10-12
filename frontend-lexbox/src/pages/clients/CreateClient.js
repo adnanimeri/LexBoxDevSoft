@@ -38,7 +38,7 @@ const CreateClient = () => {
   });
 
   // Create client mutation
-  const createClientMutation = useMutation(
+  /*const createClientMutation = useMutation(
     (clientData) => clientService.createClient(clientData),
     {
       onSuccess: (data) => {
@@ -49,7 +49,17 @@ const CreateClient = () => {
         showError(error.response?.data?.message || 'Failed to create client');
       }
     }
-  );
+  );*/
+  const createClientMutation = useMutation({
+  mutationFn: (clientData) => clientService.createClient(clientData),
+  onSuccess: (data) => {
+    showSuccess('Client created successfully');
+    navigate(`/clients/${data.id}`);
+  },
+  onError: (error) => {
+    showError(error.response?.data?.message || 'Failed to create client');
+  }
+});
 
   /**
    * Handle form submission

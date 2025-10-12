@@ -39,20 +39,18 @@ const AddTimelineNodeModal = ({ isOpen, onClose, dossierId }) => {
   const nodeType = watch('node_type');
 
   // Create timeline node mutation
-  const createNodeMutation = useMutation(
-    (nodeData) => timelineService.createTimelineNode(dossierId, nodeData),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['timeline', dossierId]);
-        showSuccess('Timeline activity added successfully');
-        reset();
-        onClose();
-      },
-      onError: (error) => {
-        showError('Failed to add timeline activity');
-      }
-    }
-  );
+const createNodeMutation = useMutation({
+  mutationFn: (nodeData) => timelineService.createTimelineNode(dossierId, nodeData),
+  onSuccess: () => {
+    queryClient.invalidateQueries(['timeline', dossierId]);
+    showSuccess('Timeline activity added successfully');
+    reset();
+    onClose();
+  },
+  onError: (error) => {
+    showError('Failed to add timeline activity');
+  }
+});
 
   /**
    * Handle form submission
