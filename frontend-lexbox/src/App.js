@@ -1,8 +1,9 @@
 // src/App.js
 //This is part!
+
+// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-//import { QueryClient, QueryClientProvider } from 'react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -15,23 +16,19 @@ import Dashboard from './pages/dashboard/Dashboard';
 import ClientList from './pages/clients/ClientList';
 import ClientDetails from './pages/clients/ClientDetails';
 import CreateClient from './pages/clients/CreateClient';
+import EditClient from './pages/clients/EditClient';
 import AdminPanel from './pages/admin/AdminPanel';
 
 // Styles
 import './styles/globals.css';
 
-/**
- * Main application component that sets up routing, providers, and global state
- * Implements React Query for server state management and context providers for app state
- */
 function App() {
-  // Initialize React Query client with default options
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
         refetchOnWindowFocus: false,
         retry: 1,
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: 5 * 60 * 1000,
       },
     },
   });
@@ -79,6 +76,14 @@ function App() {
                   </ProtectedRoute>
                 } />
                 
+                <Route path="/clients/:clientId/edit" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <EditClient />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                
                 <Route path="/admin" element={
                   <ProtectedRoute requiredRole="admin">
                     <Layout>
@@ -96,3 +101,5 @@ function App() {
 }
 
 export default App;
+
+

@@ -39,30 +39,70 @@ export const clientService = {
   },
 
   /**
-   * Update client with dossier number
+   * Update client with dossier number and case details
    */
-  assignDossierNumber: async (clientId, dossierNumber) => {
-    const response = await apiClient.patch(`/clients/${clientId}/dossier`, {
-      dossier_number: dossierNumber
-    });
+  assignDossierNumber: async (clientId, dossierData) => {
+    const response = await apiClient.patch(`/clients/${clientId}/dossier`, dossierData);
     return response.data;
   },
 
   /**
-   * Search clients by various criteria
+   * Search clients by name, email, or personal number
    */
-  searchClients: async (searchTerm) => {
+  searchClients: async (searchTerm, limit = 10) => {
     const response = await apiClient.get('/clients/search', {
-      params: { q: searchTerm }
+      params: { q: searchTerm, limit }
     });
     return response.data;
   },
 
   /**
-   * Archive/deactivate client
+   * Get client statistics for dashboard
+   */
+  getStats: async () => {
+    const response = await apiClient.get('/clients/stats');
+    return response.data;
+  },
+
+  /**
+   * Get recent clients for dashboard
+   */
+  getRecentClients: async (limit = 5) => {
+    const response = await apiClient.get('/clients/recent', {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  /**
+   * Archive/deactivate client (soft delete)
    */
   archiveClient: async (clientId) => {
-    const response = await apiClient.patch(`/clients/${clientId}/archive`);
+    const response = await apiClient.delete(`/clients/${clientId}/archive`);
     return response.data;
+  },
+
+  /**
+   * Delete client permanently (admin only)
+   */
+  deleteClient: async (clientId) => {
+    const response = await apiClient.delete(`/clients/${clientId}`);
+    return response.data;
+  },
+
+  /**
+   * Get dashboard statistics (alias for getStats)
+   */
+  getDashboardStats: async () => {
+    const response = await apiClient.get('/clients/stats');
+    return response.data.data;
+  },
+
+  /**
+   * Get recent activity (recent clients for now)
+   */
+  getRecentActivity: async (params = {}) => {
+    const response = await apiClient.get('/clients/recent', { params });
+    return response.data.data;
   },
 };
