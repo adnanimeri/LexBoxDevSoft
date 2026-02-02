@@ -3,6 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const clientRoutes = require('./routes/client.routes');
+
 
 const app = express();
 
@@ -42,6 +44,7 @@ app.get('/api/health', (req, res) => {
 // API Routes (will be added in subsequent phases)
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);
+app.use('/api/clients', clientRoutes);
 
 // 404 Handler
 app.use((req, res) => {

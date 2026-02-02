@@ -53,8 +53,12 @@ const authenticate = async (req, res, next) => {
 
 /**
  * Authorize user based on role
+ * Supports both: authorize('admin', 'lawyer') and authorize(['admin', 'lawyer'])
  */
 const authorize = (...allowedRoles) => {
+  // Flatten in case an array is passed
+  const roles = allowedRoles.flat();
+
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -66,7 +70,7 @@ const authorize = (...allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         error: {
