@@ -20,16 +20,14 @@ Password: anything
 Access: Limited - can view clients and documents, no billing
 */
 
-
-
+// src/context/AuthContext.js - REAL VERSION
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import axios from 'axios';
 
 const AuthContext = createContext();
 
-/**
- * Authentication state management using useReducer
- * MOCK VERSION - bypasses real API calls for testing
- */
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'LOGIN_START':
@@ -41,7 +39,9 @@ const authReducer = (state, action) => {
     case 'LOGOUT':
       return { ...state, user: null, isAuthenticated: false, loading: false };
     case 'SET_USER':
-      return { ...state, user: action.payload, isAuthenticated: true };
+      return { ...state, user: action.payload, isAuthenticated: true, loading: false };
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
     default:
       return state;
   }
@@ -50,7 +50,7 @@ const authReducer = (state, action) => {
 const initialState = {
   user: null,
   isAuthenticated: false,
-  loading: false,
+  loading: true, // Start with loading true
   error: null,
 };
 
@@ -59,90 +59,66 @@ export const AuthProvider = ({ children }) => {
 
   // Check for existing authentication on app load
   useEffect(() => {
-    const mockUser = localStorage.getItem('lexbox_mock_user');
-    if (mockUser) {
-      try {
-        const user = JSON.parse(mockUser);
-        dispatch({ type: 'SET_USER', payload: user });
-      } catch (error) {
-        localStorage.removeItem('lexbox_mock_user');
+    const initAuth = () => {
+      const token = localStorage.getItem('lexbox_token');
+      const storedUser = localStorage.getItem('lexbox_user');
+      
+      if (token && storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          dispatch({ type: 'SET_USER', payload: user });
+        } catch (error) {
+          localStorage.removeItem('lexbox_token');
+          localStorage.removeItem('lexbox_user');
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      } else {
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
-    }
+    };
+    
+    initAuth();
   }, []);
 
   /**
-   * MOCK Login function - no real API calls
-   * Creates different user types based on email
+   * Real Login function - calls backend API
    */
   const login = async (email, password) => {
     dispatch({ type: 'LOGIN_START' });
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
-      // Create mock user based on email
-      let mockUser;
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        email,
+        password
+      });
       
-      if (email.toLowerCase().includes('admin')) {
-        mockUser = {
-          id: 1,
-          first_name: 'Admin',
-          last_name: 'User',
-          email: email,
-          role: 'admin',
-          permissions: ['all'] // Admin has all permissions
-        };
-      } else if (email.toLowerCase().includes('secretary')) {
-        mockUser = {
-          id: 3,
-          first_name: 'Secretary',
-          last_name: 'User',
-          email: email,
-          role: 'secretary',
-          permissions: ['clients:read', 'documents:read', 'documents:create']
-        };
-      } else {
-        // Default to lawyer
-        mockUser = {
-          id: 2,
-          first_name: 'Lawyer',
-          last_name: 'User',
-          email: email,
-          role: 'lawyer',
-          permissions: [
-            'clients:read', 'clients:create', 'clients:update',
-            'timeline:read', 'timeline:create', 'timeline:update',
-            'documents:read', 'documents:create', 'documents:update',
-            'billing:read', 'billing:create'
-          ]
-        };
-      }
+      const { user, token } = response.data.data;
       
-      // Store mock user
-      localStorage.setItem('lexbox_mock_user', JSON.stringify(mockUser));
-      localStorage.setItem('lexbox_token', 'mock-jwt-token');
+      // Store in localStorage
+      localStorage.setItem('lexbox_token', token);
+      localStorage.setItem('lexbox_user', JSON.stringify(user));
       
-      dispatch({ type: 'LOGIN_SUCCESS', payload: mockUser });
-      return { user: mockUser, token: 'mock-jwt-token' };
+      dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+      return { user, token };
       
     } catch (error) {
-      dispatch({ type: 'LOGIN_FAILURE', payload: 'Login failed' });
-      throw error;
+      const message = error.response?.data?.message || 'Login failed';
+      dispatch({ type: 'LOGIN_FAILURE', payload: message });
+      throw new Error(message);
     }
   };
 
   /**
-   * Logout function that clears mock authentication
+   * Logout function
    */
   const logout = () => {
-    localStorage.removeItem('lexbox_mock_user');
     localStorage.removeItem('lexbox_token');
+    localStorage.removeItem('lexbox_user');
     dispatch({ type: 'LOGOUT' });
   };
 
   /**
-   * Check if user has required permission/role
+   * Check if user has required permission
    */
   const hasPermission = (permission) => {
     if (!state.user) return false;
@@ -171,3 +147,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;

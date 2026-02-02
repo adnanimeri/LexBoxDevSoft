@@ -2,10 +2,10 @@
 // CLIENT LIST PAGE
 // ===================================================================
 // src/pages/clients/ClientList.js
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, Filter, Eye, Edit, Archive } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Archive } from 'lucide-react';
 import { clientService } from '../../services/clientService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -28,18 +28,18 @@ const ClientList = () => {
 
   // Fetch clients with search and pagination
   const { data: clientsData, isLoading, error, refetch } = useQuery({
-  queryKey: ['clients', searchTerm, filterStatus, currentPage, sortBy, sortOrder],
-  queryFn: () => clientService.getClients({
-    search: searchTerm,
-    status: filterStatus !== 'all' ? filterStatus : undefined,
-    page: currentPage,
-    limit: 20,
-    sortBy,
-    sortOrder
-  }),
-  keepPreviousData: true,
-  staleTime: 30000 // 30 seconds
-});
+    queryKey: ['clients', searchTerm, filterStatus, currentPage, sortBy, sortOrder],
+    queryFn: () => clientService.getClients({
+      search: searchTerm,
+      status: filterStatus !== 'all' ? filterStatus : undefined,
+      page: currentPage,
+      limit: 20,
+      sortBy,
+      sortOrder
+    }),
+    keepPreviousData: true,
+    staleTime: 30000 // 30 seconds
+  });
 
   /**
    * Handle client archiving
@@ -69,6 +69,16 @@ const ClientList = () => {
     setCurrentPage(1);
   };
 
+  /**
+   * Get primary dossier number from client's dossiers array
+   */
+  const getPrimaryDossier = (client) => {
+    if (client.dossiers && client.dossiers.length > 0) {
+      return client.dossiers[0].dossier_number;
+    }
+    return null;
+  };
+
   if (isLoading && !clientsData) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -92,7 +102,8 @@ const ClientList = () => {
   }
 
   const clients = clientsData?.data || [];
-  const totalPages = Math.ceil((clientsData?.total || 0) / 20);
+  const totalPages = clientsData?.pagination?.pages || 1;
+  const totalClients = clientsData?.pagination?.total || 0;
 
   return (
     <div className="space-y-6">
@@ -101,7 +112,7 @@ const ClientList = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
           <p className="text-gray-600">
-            {clientsData?.total || 0} clients total
+            {totalClients} clients total
           </p>
         </div>
         
@@ -183,13 +194,9 @@ const ClientList = () => {
                     </th>
                     <th 
                       scope="col" 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('dossier_number')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Dossier Number
-                      {sortBy === 'dossier_number' && (
-                        <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                      )}
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contact
@@ -242,7 +249,7 @@ const ClientList = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {client.dossier_number || (
+                        {getPrimaryDossier(client) || (
                           <span className="text-gray-400 italic">Not assigned</span>
                         )}
                       </td>
@@ -262,7 +269,7 @@ const ClientList = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(client.created_at).toLocaleDateString()}
+                        {new Date(client.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
@@ -314,7 +321,7 @@ const ClientList = () => {
                           {client.first_name} {client.last_name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {client.dossier_number || 'No dossier'}
+                          {getPrimaryDossier(client) || 'No dossier'}
                         </div>
                       </div>
                     </div>

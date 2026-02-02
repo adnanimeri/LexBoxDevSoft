@@ -66,7 +66,7 @@ const Dashboard = () => {
         />
         <StatsCard
           title="Active Cases"
-          value={stats?.activeCases || 0}
+          value={stats?.activeDossiers || 0}
           icon={FileText}
           trend={stats?.casesTrend}
           color="green"

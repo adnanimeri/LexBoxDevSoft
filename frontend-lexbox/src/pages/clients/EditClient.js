@@ -1,10 +1,10 @@
 // ===================================================================
-// CREATE CLIENT PAGE
+// EDIT CLIENT PAGE
 // ===================================================================
-// src/pages/clients/CreateClient.js
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+// src/pages/clients/EditClient.js
+import React, { useEffect } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { ArrowLeft, Save, User } from 'lucide-react';
 import { clientService } from '../../services/clientService';
@@ -12,54 +12,60 @@ import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 /**
- * Create new client page with form validation
- * Handles initial client registration with optional document upload
+ * Edit client page with form validation
+ * Loads existing client data and allows updates
  */
-const CreateClient = () => {
+const EditClient = () => {
+  const { clientId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch
-  } = useForm({
-    defaultValues: {
-      first_name: '',
-      last_name: '',
-      personal_number: '',
-      email: '',
-      phone: '',
-      address: '',
-      notes: '',
-      dossier_number: ''
-    }
+    reset
+  } = useForm();
+
+  // Fetch existing client data
+  const { data: clientData, isLoading: isLoadingClient, error: fetchError } = useQuery({
+    queryKey: ['client', clientId],
+    queryFn: () => clientService.getClient(clientId),
+    staleTime: 30000
   });
 
-  // Create client mutation
-  /*const createClientMutation = useMutation(
-    (clientData) => clientService.createClient(clientData),
-    {
-      onSuccess: (data) => {
-        showSuccess('Client created successfully');
-        navigate(`/clients/${data.id}`);
-      },
-      onError: (error) => {
-        showError(error.response?.data?.message || 'Failed to create client');
-      }
+  // Pre-fill form when client data loads
+  useEffect(() => {
+    if (clientData?.data) {
+      const client = clientData.data;
+      reset({
+        first_name: client.first_name || '',
+        last_name: client.last_name || '',
+        personal_number: client.personal_number || '',
+        email: client.email || '',
+        phone: client.phone || '',
+        address: client.address || '',
+        notes: client.notes || '',
+        status: client.status || 'active'
+      });
     }
-  );*/
-const createClientMutation = useMutation({
-  mutationFn: (clientData) => clientService.createClient(clientData),
-  onSuccess: (data) => {
-    showSuccess('Client created successfully');
-    navigate(`/clients/${data.data.id}`);  // Changed from data.id to data.data.id
-  },
-  onError: (error) => {
-    showError(error.response?.data?.message || 'Failed to create client');
-  }
-});
+  }, [clientData, reset]);
+
+  // Update client mutation
+  const updateClientMutation = useMutation({
+    mutationFn: (data) => clientService.updateClient(clientId, data),
+    onSuccess: () => {
+      showSuccess('Client updated successfully');
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries(['client', clientId]);
+      queryClient.invalidateQueries(['clients']);
+      navigate(`/clients/${clientId}`);
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to update client');
+    }
+  });
 
   /**
    * Handle form submission
@@ -67,28 +73,54 @@ const createClientMutation = useMutation({
   const onSubmit = (data) => {
     // Clean up empty fields
     const cleanData = Object.entries(data).reduce((acc, [key, value]) => {
-      if (value && value.trim() !== '') {
-        acc[key] = value.trim();
+      if (value && value.toString().trim() !== '') {
+        acc[key] = typeof value === 'string' ? value.trim() : value;
       }
       return acc;
     }, {});
 
-    createClientMutation.mutate(cleanData);
+    updateClientMutation.mutate(cleanData);
   };
+
+  if (isLoadingClient) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600">Error loading client. Please try again.</p>
+        <Link
+          to="/clients"
+          className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Back to Clients
+        </Link>
+      </div>
+    );
+  }
+
+  const client = clientData?.data;
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center space-x-4 mb-6">
         <Link
-          to="/clients"
+          to={`/clients/${clientId}`}
           className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
         >
           <ArrowLeft className="h-6 w-6" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">New Client</h1>
-          <p className="text-gray-600">Register a new client in the system</p>
+          <h1 className="text-2xl font-bold text-gray-900">Edit Client</h1>
+          <p className="text-gray-600">
+            Editing: {client?.first_name} {client?.last_name}
+          </p>
         </div>
       </div>
 
@@ -149,51 +181,47 @@ const createClientMutation = useMutation({
             </div>
 
             {/* Personal Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Personal Number
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  {...register('personal_number', {
-                    pattern: {
-                      value: /^[0-9]{8,15}$/,
-                      message: 'Personal number must be 8-15 digits (numbers only)'
-                    }
-                  })}
-                  onKeyPress={(e) => {
-                    if (!/[0-9]/.test(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.personal_number ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter personal identification number (numbers only)"
-                />
-                {errors.personal_number && (
-                  <p className="mt-1 text-sm text-red-600">{errors.personal_number.message}</p>
-                )}
-                <p className="mt-1 text-sm text-gray-500">
-                  Optional: 8-15 digit number for client identification
-                </p>
-              </div>
-
-            {/* Dossier Number */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dossier Number (Numrin e Landes)
+                Personal Number
               </label>
               <input
                 type="text"
-                {...register('dossier_number')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter dossier number if available"
+                inputMode="numeric"
+                {...register('personal_number', {
+                  pattern: {
+                    value: /^[0-9]{8,15}$/,
+                    message: 'Personal number must be 8-15 digits (numbers only)'
+                  }
+                })}
+                onKeyPress={(e) => {
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.personal_number ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Enter personal identification number (numbers only)"
               />
-              <p className="mt-1 text-sm text-gray-500">
-                Optional: Can be assigned later when received
-              </p>
+              {errors.personal_number && (
+                <p className="mt-1 text-sm text-red-600">{errors.personal_number.message}</p>
+              )}
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                {...register('status')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
           </div>
         </div>
@@ -244,10 +272,9 @@ const createClientMutation = useMutation({
                     }
                   })}
                   onKeyPress={(e) => {
-                    // Allow + only at the start, otherwise only numbers
                     const currentValue = e.target.value;
                     if (e.key === '+' && currentValue.length === 0) {
-                      return; // Allow + at start
+                      return;
                     }
                     if (!/[0-9]/.test(e.key)) {
                       e.preventDefault();
@@ -261,9 +288,6 @@ const createClientMutation = useMutation({
                 {errors.phone && (
                   <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
                 )}
-                <p className="mt-1 text-sm text-gray-500">
-                  Format: +country code followed by number (e.g., +38344123456)
-                </p>
               </div>
             </div>
 
@@ -300,9 +324,6 @@ const createClientMutation = useMutation({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Additional notes about the client..."
               />
-              <p className="mt-1 text-sm text-gray-500">
-                Any relevant information about the client or case
-              </p>
             </div>
           </div>
         </div>
@@ -310,22 +331,22 @@ const createClientMutation = useMutation({
         {/* Form Actions */}
         <div className="flex justify-end space-x-4 pb-8">
           <Link
-            to="/clients"
+            to={`/clients/${clientId}`}
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Cancel
           </Link>
           <button
             type="submit"
-            disabled={createClientMutation.isLoading}
+            disabled={updateClientMutation.isPending}
             className="inline-flex items-center px-6 py-2 border border-transparent text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {createClientMutation.isLoading ? (
+            {updateClientMutation.isPending ? (
               <LoadingSpinner size="sm" className="mr-2" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Create Client
+            Save Changes
           </button>
         </div>
       </form>
@@ -333,4 +354,4 @@ const createClientMutation = useMutation({
   );
 };
 
-export default CreateClient;
+export default EditClient;
