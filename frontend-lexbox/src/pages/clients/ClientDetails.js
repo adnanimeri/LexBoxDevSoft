@@ -4,8 +4,7 @@
 // src/pages/clients/ClientDetails.js
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-//import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   Edit, 
@@ -16,93 +15,64 @@ import {
   Mail, 
   MapPin,
   Plus,
-  Calendar
+  Calendar,
+  User
 } from 'lucide-react';
 import { clientService } from '../../services/clientService';
-import { timelineService } from '../../services/timelineService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Timeline from '../../components/timeline/Timeline';
-import DocumentsList from '../../components/documents/DocumentsList';
-import AddTimelineNodeModal from '../../components/timeline/AddTimelineNodeModal';
-import AssignDossierModal from '../../components/clients/AssignDossierModal';
 
 /**
  * Client details page with timeline, documents, and billing information
- * Central hub for all client-related activities and case management
  */
 const ClientDetails = () => {
   const { clientId } = useParams();
-  const [activeTab, setActiveTab] = useState('timeline');
-  const [showAddNodeModal, setShowAddNodeModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [showDossierModal, setShowDossierModal] = useState(false);
+  const [dossierNumber, setDossierNumber] = useState('');
+  const [dossierTitle, setDossierTitle] = useState('');
+  const [legalIssueType, setLegalIssueType] = useState('other');
   
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
 
   // Fetch client details
-  /*const { data: client, isLoading: clientLoading, error: clientError } = useQuery(
-    ['client', clientId],
-    () => clientService.getClient(clientId),
-    {
-      staleTime: 60000 // 1 minute
+  const { data: clientData, isLoading: clientLoading, error: clientError } = useQuery({
+    queryKey: ['client', clientId],
+    queryFn: () => clientService.getClient(clientId),
+    staleTime: 60000
+  });
+
+  // Assign dossier mutation
+  const assignDossierMutation = useMutation({
+    mutationFn: (dossierData) => clientService.assignDossierNumber(clientId, dossierData),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['client', clientId]);
+      showSuccess('Dossier assigned successfully');
+      setShowDossierModal(false);
+      setDossierNumber('');
+      setDossierTitle('');
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to assign dossier');
     }
-  );*/
+  });
 
-// Fetch client timeline
-  const { data: client, isLoading: clientLoading, error: clientError } = useQuery({
-  queryKey: ['client', clientId],
-  queryFn: () => clientService.getClient(clientId),
-  staleTime: 60000
-});
-
- /* // Fetch client timeline
-  const { data: timeline, isLoading: timelineLoading } = useQuery(
-    ['timeline', client?.dossier?.id],
-    () => client?.dossier?.id ? timelineService.getTimeline(client.dossier.id) : null,
-    {
-      enabled: !!client?.dossier?.id,
-      staleTime: 30000 // 30 seconds
+  const handleAssignDossier = (e) => {
+    e.preventDefault();
+    if (!dossierNumber.trim()) {
+      showError('Dossier number is required');
+      return;
     }
-  );*/
-// Fetch client timeline
-const { data: timeline, isLoading: timelineLoading } = useQuery({
-  queryKey: ['timeline', client?.dossier?.id],
-  queryFn: () => client?.dossier?.id ? timelineService.getTimeline(client.dossier.id) : null,
-  enabled: !!client?.dossier?.id,
-  staleTime: 30000
-});
-
-
-  // Assign dossier number mutation
-const assignDossierMutation = useMutation({
-  mutationFn: ({ clientId, dossierNumber }) => clientService.assignDossierNumber(clientId, dossierNumber),
-  onSuccess: () => {
-    queryClient.invalidateQueries(['client', clientId]);
-    showSuccess('Dossier number assigned successfully');
-    setShowDossierModal(false);
-  },
-  onError: (error) => {
-    showError('Failed to assign dossier number');
-  }
-});
-
-  //old 
-  /*const assignDossierMutation = useMutation(
-    ({ clientId, dossierNumber }) => clientService.assignDossierNumber(clientId, dossierNumber),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['client', clientId]);
-        showSuccess('Dossier number assigned successfully');
-        setShowDossierModal(false);
-      },
-      onError: (error) => {
-        showError('Failed to assign dossier number');
-      }
-    }
-  );*/
+    assignDossierMutation.mutate({
+      dossier_number: dossierNumber,
+      title: dossierTitle || `Case for ${client.first_name} ${client.last_name}`,
+      legal_issue_type: legalIssueType
+    });
+  };
 
   if (clientLoading) {
     return (
@@ -127,14 +97,20 @@ const assignDossierMutation = useMutation({
     );
   }
 
+  const client = clientData?.data || clientData;
+  const dossiers = client?.dossiers || [];
+  const primaryDossier = dossiers[0];
+
   const tabs = [
-    { id: 'timeline', name: 'Timeline', icon: Clock, permission: 'timeline:read' },
-    { id: 'documents', name: 'Documents', icon: FileText, permission: 'documents:read' },
-    { id: 'billing', name: 'Billing', icon: DollarSign, permission: 'billing:read' },
+    { id: 'overview', name: 'Overview', icon: User },
+    { id: 'timeline', name: 'Timeline', icon: Clock, permission: 'timeline:read', requiresDossier: true },
+    { id: 'documents', name: 'Documents', icon: FileText, permission: 'documents:read', requiresDossier: true },
+    { id: 'billing', name: 'Billing', icon: DollarSign, permission: 'billing:read', requiresDossier: true },
   ];
 
   const allowedTabs = tabs.filter(tab => 
-    !tab.permission || hasPermission(tab.permission)
+    (!tab.permission || hasPermission(tab.permission)) &&
+    (!tab.requiresDossier || primaryDossier)
   );
 
   return (
@@ -153,13 +129,15 @@ const assignDossierMutation = useMutation({
               {client.first_name} {client.last_name}
             </h1>
             <p className="text-gray-600">
-              {client.dossier_number ? `Dossier: ${client.dossier_number}` : 'No dossier assigned'}
+              {primaryDossier 
+                ? `Dossier: ${primaryDossier.dossier_number}` 
+                : 'No dossier assigned'}
             </p>
           </div>
         </div>
 
         <div className="flex space-x-3">
-          {!client.dossier_number && hasPermission('clients:update') && (
+          {!primaryDossier && hasPermission('clients:update') && (
             <button
               onClick={() => setShowDossierModal(true)}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
@@ -206,7 +184,7 @@ const assignDossierMutation = useMutation({
               <div>
                 <p className="text-sm font-medium text-gray-900">Registered</p>
                 <p className="text-sm text-gray-500">
-                  {new Date(client.created_at).toLocaleDateString()}
+                  {new Date(client.createdAt || client.created_at).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -218,6 +196,31 @@ const assignDossierMutation = useMutation({
               <div>
                 <p className="text-sm font-medium text-gray-900">Address</p>
                 <p className="text-sm text-gray-500">{client.address}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Dossier info */}
+          {primaryDossier && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900">Active Dossier</h4>
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-blue-600">Number:</span>
+                  <span className="ml-1 font-medium">{primaryDossier.dossier_number}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Type:</span>
+                  <span className="ml-1 font-medium">{primaryDossier.legal_issue_type?.replace('_', ' ') || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Status:</span>
+                  <span className="ml-1 font-medium">{primaryDossier.status}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Priority:</span>
+                  <span className="ml-1 font-medium">{primaryDossier.priority}</span>
+                </div>
               </div>
             </div>
           )}
@@ -253,99 +256,155 @@ const assignDossierMutation = useMutation({
         </div>
 
         <div className="p-6">
-          {/* Timeline tab */}
-          {activeTab === 'timeline' && (
+          {/* Overview tab */}
+          {activeTab === 'overview' && (
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-medium text-gray-900">Case Timeline</h3>
-                {client.dossier_number && hasPermission('timeline:create') && (
-                  <button
-                    onClick={() => setShowAddNodeModal(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Activity
-                  </button>
-                )}
-              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Client Overview</h3>
               
-              {client.dossier_number ? (
-                <Timeline 
-                  timeline={timeline} 
-                  loading={timelineLoading} 
-                  dossierId={client.dossier?.id}
-                />
+              {!primaryDossier ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500 mb-4">No dossier has been assigned yet</p>
+                  {hasPermission('clients:update') && (
+                    <button
+                      onClick={() => setShowDossierModal(true)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Assign Dossier Number
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Timeline will be available after dossier number is assigned</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-blue-600">Total Billed</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      €{parseFloat(primaryDossier.total_billed || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-green-600">Total Paid</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      €{parseFloat(primaryDossier.total_paid || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-orange-50 p-4 rounded-lg">
+                    <p className="text-sm text-orange-600">Outstanding</p>
+                    <p className="text-2xl font-bold text-orange-900">
+                      €{(parseFloat(primaryDossier.total_billed || 0) - parseFloat(primaryDossier.total_paid || 0)).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
+          {/* Timeline tab */}
+          {activeTab === 'timeline' && primaryDossier && (
+            <Timeline dossierId={primaryDossier.id} />
+          )}
+
           {/* Documents tab */}
           {activeTab === 'documents' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-medium text-gray-900">Documents</h3>
-                {hasPermission('documents:create') && (
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Upload Documents
-                  </button>
-                )}
-              </div>
-              
-              <DocumentsList 
-                dossierId={client.dossier?.id} 
-                canUpload={hasPermission('documents:create')}
-              />
+            <div className="text-center py-12 text-gray-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>Document management coming in Phase 4</p>
             </div>
           )}
 
           {/* Billing tab */}
           {activeTab === 'billing' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-medium text-gray-900">Billing & Invoices</h3>
-                {hasPermission('billing:create') && (
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Generate Invoice
-                  </button>
-                )}
-              </div>
-              
-              {/* Billing content placeholder */}
-              <div className="text-center py-12 text-gray-500">
-                <DollarSign className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Billing information will be displayed here</p>
-              </div>
+            <div className="text-center py-12 text-gray-500">
+              <DollarSign className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>Billing & Invoices coming in Phase 5</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modals */}
-      {showAddNodeModal && (
-        <AddTimelineNodeModal
-          isOpen={showAddNodeModal}
-          onClose={() => setShowAddNodeModal(false)}
-          dossierId={client.dossier?.id}
-        />
-      )}
-
+      {/* Assign Dossier Modal */}
       {showDossierModal && (
-        <AssignDossierModal
-          isOpen={showDossierModal}
-          onClose={() => setShowDossierModal(false)}
-          clientId={clientId}
-          onAssign={(dossierNumber) => 
-            assignDossierMutation.mutate({ clientId, dossierNumber })
-          }
-          loading={assignDossierMutation.isLoading}
-        />
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50"
+              onClick={() => setShowDossierModal(false)}
+            />
+            
+            <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Assign Dossier Number
+              </h3>
+              
+              <form onSubmit={handleAssignDossier} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Dossier Number *
+                  </label>
+                  <input
+                    type="text"
+                    value={dossierNumber}
+                    onChange={(e) => setDossierNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., DOS-2025-001"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Case Title
+                  </label>
+                  <input
+                    type="text"
+                    value={dossierTitle}
+                    onChange={(e) => setDossierTitle(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Property Dispute Case"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Legal Issue Type
+                  </label>
+                  <select
+                    value={legalIssueType}
+                    onChange={(e) => setLegalIssueType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="family_law">Family Law</option>
+                    <option value="criminal_law">Criminal Law</option>
+                    <option value="civil_law">Civil Law</option>
+                    <option value="immigration">Immigration</option>
+                    <option value="property_law">Property Law</option>
+                    <option value="business_law">Business Law</option>
+                    <option value="labor_law">Labor Law</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowDossierModal(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={assignDossierMutation.isPending}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {assignDossierMutation.isPending ? 'Assigning...' : 'Assign Dossier'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
