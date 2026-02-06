@@ -1,188 +1,196 @@
-// ===================================================================
-// TIMELINE NODE MODAL (EDIT/VIEW)
-// ===================================================================
 // src/components/timeline/TimelineNodeModal.js
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Save, Clock, DollarSign } from 'lucide-react';
+import { X } from 'lucide-react';
 import { timelineService } from '../../services/timelineService';
 import { useNotification } from '../../context/NotificationContext';
-import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 /**
- * Modal for editing timeline nodes
- * Supports viewing and updating timeline node details
+ * Modal for creating/editing timeline nodes
  */
-const TimelineNodeModal = ({ isOpen, onClose, node, dossierId, mode = 'edit' }) => {
-  const { hasPermission } = useAuth();
+const TimelineNodeModal = ({ dossierId, node, onClose, onSuccess }) => {
   const { showSuccess, showError } = useNotification();
-  const queryClient = useQueryClient();
+  const isEditing = !!node;
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
-    reset
+    watch,
+    setValue,
+    formState: { errors }
   } = useForm({
     defaultValues: {
+      node_type: node?.node_type || 'activity',
+      activity_type: node?.activity_type || '',
       title: node?.title || '',
       description: node?.description || '',
-      status: node?.status || 'active',
-      billing_amount: node?.billing_amount || '',
+      activity_date: node?.activity_date 
+        ? new Date(node.activity_date).toISOString().slice(0, 16)
+        : new Date().toISOString().slice(0, 16),
       hours_worked: node?.hours_worked || '',
-      scheduled_date: node?.scheduled_date ? new Date(node.scheduled_date).toISOString().slice(0, 16) : ''
+      hourly_rate: node?.hourly_rate || '150',
+      is_billable: node?.is_billable ?? true,
+      status: node?.status || 'completed',
+      priority: node?.priority || 'medium'
     }
   });
 
-  // Update timeline node mutation
-const updateNodeMutation = useMutation({
-  mutationFn: (nodeData) => timelineService.updateTimelineNode(node.id, nodeData),
-  onSuccess: () => {
-    queryClient.invalidateQueries(['timeline', dossierId]);
-    showSuccess('Timeline activity updated successfully');
-    onClose();
-  },
-  onError: (error) => {
-    showError('Failed to update timeline activity');
-  }
-});
+  //const nodeType = watch('node_type');
+  //const hoursWorked = watch('hours_worked');
+  //const hourlyRate = watch('hourly_rate');
+  const [nodeType, setNodeType] = React.useState(node?.node_type || 'activity');
+  const hoursWorked = watch('hours_worked');
+  const hourlyRate = watch('hourly_rate');
 
-  /**
-   * Handle form submission
-   */
-  const onSubmit = (data) => {
-    if (mode === 'view' || !hasPermission('timeline:update')) return;
 
-    const cleanData = {
-      ...data,
-      billing_amount: data.billing_amount ? parseFloat(data.billing_amount) : 0,
-      hours_worked: data.hours_worked ? parseFloat(data.hours_worked) : null,
-      scheduled_date: data.scheduled_date || null
-    };
+  // Calculate billing amount
+  const billingAmount = (parseFloat(hoursWorked) || 0) * (parseFloat(hourlyRate) || 0);
 
-    updateNodeMutation.mutate(cleanData);
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data) => timelineService.createTimelineNode(dossierId, data),
+    onSuccess: () => {
+      showSuccess('Activity created successfully');
+      onSuccess();
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to create activity');
+    }
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: (data) => timelineService.updateTimelineNode(node.id, data),
+    onSuccess: () => {
+      showSuccess('Activity updated successfully');
+      onSuccess();
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to update activity');
+    }
+  });
+const onSubmit = (data) => {
+  // Clean up data
+  const submitData = {
+    node_type: data.node_type,
+    title: data.title,
+    description: data.description || null,
+    activity_date: data.activity_date ? new Date(data.activity_date).toISOString() : new Date().toISOString(),
+    hours_worked: parseFloat(data.hours_worked) || 0,
+    hourly_rate: parseFloat(data.hourly_rate) || 0,
+    billing_amount: billingAmount,
+    is_billable: data.is_billable,
+    status: data.status,
+    priority: data.priority
   };
 
-  if (!isOpen || !node) return null;
+  // Only add activity_type if node_type is 'activity' and it has a value
+  if (data.node_type === 'activity' && data.activity_type) {
+    submitData.activity_type = data.activity_type;
+  }
 
-  const statusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'cancelled', label: 'Cancelled' }
-  ];
+  if (isEditing) {
+    updateMutation.mutate(submitData);
+  } else {
+    createMutation.mutate(submitData);
+  }
+  };
 
-  const isReadOnly = mode === 'view' || !hasPermission('timeline:update');
+  const isLoading = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        {/* Background overlay */}
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
+      <div className="flex items-center justify-center min-h-screen px-4">
+        {/* Overlay */}
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          onClick={onClose}
+        />
 
         {/* Modal */}
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+        <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900">
-              {mode === 'view' ? 'View' : 'Edit'} Timeline Activity
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {isEditing ? 'Edit Activity' : 'Add Activity'}
             </h3>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              className="text-gray-400 hover:text-gray-600"
             >
-              <X className="h-5 w-5" />
+              <X className="h-6 w-6" />
             </button>
           </div>
 
-          {/* Node info */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  {node.node_type.replace('_', ' ').toUpperCase()}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Created {new Date(node.created_at).toLocaleString()}
-                  {node.created_by_name && ` by ${node.created_by_name}`}
-                </p>
-              </div>
-              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                {node.hours_worked && (
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    <span>{node.hours_worked}h</span>
-                  </div>
-                )}
-                {node.billing_amount && parseFloat(node.billing_amount) > 0 && (
-                  <div className="flex items-center">
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    <span>€{parseFloat(node.billing_amount).toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-4 space-y-4">
+            {/* Node Type & Activity Type */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Title */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  {...register('title', { 
-                    required: 'Title is required',
-                    minLength: { value: 3, message: 'Title must be at least 3 characters' }
-                  })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.title ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  readOnly={isReadOnly}
-                  placeholder="Enter activity title"
-                />
-                {errors.title && (
-                  <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-                )}
-              </div>
-
-              {/* Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status *
+                  Type *
                 </label>
                 <select
-                  {...register('status', { required: 'Status is required' })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.status ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  disabled={isReadOnly}
+                  {...register('node_type', { required: 'Type is required' })}
+                  onChange={(e) => {
+                    setValue('node_type', e.target.value);
+                    setNodeType(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  {statusOptions.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                  ))}
+                  <option value="activity">Activity</option>
+                  <option value="registration">Registration</option>
+                  <option value="legal_classification">Legal Classification</option>
+                  <option value="document">Document</option>
+                  <option value="milestone">Milestone</option>
+                  <option value="billing_event">Billing Event</option>
                 </select>
               </div>
 
-              {/* Scheduled Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Scheduled Date
-                </label>
-                <input
-                  type="datetime-local"
-                  {...register('scheduled_date')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  readOnly={isReadOnly}
-                />
-              </div>
+              {nodeType === 'activity' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Activity Type
+                  </label>
+                  <select
+                    {...register('activity_type')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select type...</option>
+                    <option value="consultation">Consultation</option>
+                    <option value="court_hearing">Court Hearing</option>
+                    <option value="document_filing">Document Filing</option>
+                    <option value="phone_call">Phone Call</option>
+                    <option value="email">Email</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="research">Research</option>
+                    <option value="drafting">Drafting</option>
+                    <option value="review">Review</option>
+                    <option value="negotiation">Negotiation</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              ): null}
+            </div>
+
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
+              <input
+                type="text"
+                {...register('title', { required: 'Title is required' })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  errors.title ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Enter activity title"
+              />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+              )}
             </div>
 
             {/* Description */}
@@ -191,86 +199,114 @@ const updateNodeMutation = useMutation({
                 Description
               </label>
               <textarea
-                rows="4"
+                rows="3"
                 {...register('description')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Describe the activity details..."
-                readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter description..."
               />
             </div>
 
+            {/* Date & Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Hours Worked */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hours Worked
+                  Date & Time *
                 </label>
                 <input
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  {...register('hours_worked', {
-                    min: { value: 0, message: 'Hours must be positive' }
-                  })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.hours_worked ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="0.00"
-                  readOnly={isReadOnly}
+                  type="datetime-local"
+                  {...register('activity_date', { required: 'Date is required' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
-                {errors.hours_worked && (
-                  <p className="mt-1 text-sm text-red-600">{errors.hours_worked.message}</p>
-                )}
               </div>
 
-              {/* Billing Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Billing Amount (€)
+                  Status
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...register('billing_amount', {
-                    min: { value: 0, message: 'Amount must be positive' }
-                  })}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.billing_amount ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="0.00"
-                  readOnly={isReadOnly || !hasPermission('billing:update')}
-                />
-                {errors.billing_amount && (
-                  <p className="mt-1 text-sm text-red-600">{errors.billing_amount.message}</p>
-                )}
+                <select
+                  {...register('status')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Billing Section */}
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Billing Information</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hours Worked
+                  </label>
+                  <input
+                    type="number"
+                    step="0.25"
+                    min="0"
+                    {...register('hours_worked')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hourly Rate (€)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('hourly_rate')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="150.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Total Amount
+                  </label>
+                  <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-medium">
+                    €{billingAmount.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <label className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    {...register('is_billable')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">This activity is billable</span>
+                </label>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-6">
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
-                {mode === 'view' ? 'Close' : 'Cancel'}
+                Cancel
               </button>
-              
-              {!isReadOnly && (
-                <button
-                  type="submit"
-                  disabled={updateNodeMutation.isLoading}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {updateNodeMutation.isLoading ? (
-                    <LoadingSpinner size="sm" className="mr-2" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Save Changes
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+              >
+                {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
+                {isEditing ? 'Save Changes' : 'Add Activity'}
+              </button>
             </div>
           </form>
         </div>
