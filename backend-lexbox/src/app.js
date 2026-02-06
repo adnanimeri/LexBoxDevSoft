@@ -4,6 +4,8 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const clientRoutes = require('./routes/client.routes');
+const timelineRoutes = require('./routes/timeline.routes');
+const dossierRoutes = require('./routes/dossier.routes');
 
 
 const app = express();
@@ -45,6 +47,8 @@ app.get('/api/health', (req, res) => {
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/timeline', timelineRoutes);
+app.use('/api/dossiers', dossierRoutes);
 
 // 404 Handler
 app.use((req, res) => {
