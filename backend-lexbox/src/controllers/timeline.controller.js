@@ -250,6 +250,28 @@ class TimelineController {
       });
     }
   }
+
+  /**
+   * Get timeline totals for a dossier
+   * GET /api/dossiers/:dossierId/timeline/totals
+   */
+  async getTimelineTotals(req, res) {
+    try {
+      const { dossierId } = req.params;
+      const totals = await timelineService.getTimelineTotals(dossierId);
+      res.json({
+        success: true,
+        data: totals
+      });
+    } catch (error) {
+      console.error('Error getting timeline totals:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve timeline totals',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = new TimelineController();
