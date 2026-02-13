@@ -2,40 +2,65 @@
 // DOCUMENT PREVIEW MODAL
 // ===================================================================
 // src/components/documents/DocumentPreviewModal.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Download, Edit, ExternalLink } from 'lucide-react';
 import { documentService } from '../../services/documentService';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 /**
  * Modal for previewing documents
  * Supports PDF preview and metadata display
  */
-const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
-  if (!isOpen || !document) return null;
+const DocumentPreviewModal = ({ isOpen, onClose, document: doc }) => {
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const canPreview = doc?.mime_type === 'application/pdf' || 
+                    doc?.mime_type?.startsWith('image/');
+
+  useEffect(() => {
+    if (isOpen && doc && canPreview) {
+      setLoading(true);
+      documentService.getPreviewBlob(doc.id)
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          setPreviewUrl(url);
+        })
+        .catch(err => {
+          console.error('Failed to load preview:', err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [isOpen, doc?.id]);
+
+  if (!isOpen || !doc) return null;
 
   /**
    * Handle document download
    */
   const handleDownload = async () => {
     try {
-      const blob = await documentService.downloadDocument(document.id);
+      const blob = await documentService.downloadDocument(doc.id);
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
-      link.download = document.original_filename || document.filename;
-      document.body.appendChild(link);
+      link.download = doc.original_filename || doc.filename;
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
     }
   };
-
-  const canPreview = document.mime_type === 'application/pdf' || 
-                    document.mime_type?.startsWith('image/');
-  
-  const previewUrl = canPreview ? documentService.getPreviewUrl(document.id) : null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -49,10 +74,10 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-medium text-gray-900 truncate">
-                {document.original_filename || document.filename}
+                {doc.original_filename || doc.filename}
               </h3>
               <p className="text-sm text-gray-500">
-                {document.document_category} • {new Date(document.uploaded_at).toLocaleDateString()}
+                {doc.category || doc.document_category} • {new Date(doc.createdAt || doc.uploaded_at).toLocaleDateString()}
               </p>
             </div>
             
@@ -85,9 +110,11 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           <div className="flex h-96 sm:h-[600px]">
             {/* Preview area */}
             <div className="flex-1 bg-gray-100 flex items-center justify-center">
-              {canPreview ? (
+              {loading ? (
+                <LoadingSpinner size="lg" />
+              ) : canPreview && previewUrl ? (
                 <div className="w-full h-full">
-                  {document.mime_type === 'application/pdf' ? (
+                  {doc.mime_type === 'application/pdf' ? (
                     <iframe
                       src={previewUrl}
                       className="w-full h-full border-0"
@@ -96,7 +123,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   ) : (
                     <img
                       src={previewUrl}
-                      alt={document.original_filename}
+                      alt={doc.original_filename}
                       className="max-w-full max-h-full object-contain"
                     />
                   )}
@@ -127,16 +154,16 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Original Filename</dt>
                   <dd className="mt-1 text-sm text-gray-900 break-all">
-                    {document.original_filename || document.filename}
+                    {doc.original_filename || doc.filename}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-sm font-medium text-gray-500">File Size</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {document.file_size ? (
+                    {doc.file_size ? (
                       (() => {
-                        const bytes = document.file_size;
+                        const bytes = doc.file_size;
                         if (bytes === 0) return '0 Bytes';
                         const k = 1024;
                         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -152,22 +179,22 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">File Type</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {document.mime_type || 'Unknown'}
+                    {doc.mime_type || 'Unknown'}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Category</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {document.document_category || 'Uncategorized'}
+                    {doc.category || doc.document_category || 'Uncategorized'}
                   </dd>
                 </div>
 
-                {document.physical_location && (
+                {doc.physical_location && (
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Physical Location</dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      {document.physical_location}
+                      {doc.physical_location}
                     </dd>
                   </div>
                 )}
@@ -175,29 +202,20 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Uploaded</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    {new Date(document.uploaded_at).toLocaleString()}
+                    {new Date(doc.createdAt || doc.uploaded_at).toLocaleString()}
                   </dd>
                 </div>
 
-                {document.uploaded_by_name && (
+                {doc.uploader && (
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Uploaded By</dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      {document.uploaded_by_name}
+                      {doc.uploader.first_name} {doc.uploader.last_name}
                     </dd>
                   </div>
                 )}
 
-                {document.version && document.version > 1 && (
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Version</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {document.version}
-                    </dd>
-                  </div>
-                )}
-
-                {document.is_confidential && (
+                {doc.is_confidential && (
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Security</dt>
                     <dd className="mt-1">

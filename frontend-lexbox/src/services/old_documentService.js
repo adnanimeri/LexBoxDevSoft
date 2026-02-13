@@ -5,14 +5,18 @@ export const documentService = {
   uploadDocuments: async (dossierId, files, metadata = {}) => {
     const formData = new FormData();
     
+    // Add files
     files.forEach(file => {
       formData.append('files', file);
     });
     
+    // Add metadata
     formData.append('category', metadata.category || 'other');
     formData.append('physical_location', metadata.physical_location || '');
     formData.append('is_confidential', metadata.is_confidential || false);
     formData.append('description', metadata.description || '');
+    
+    // Timeline integration
     formData.append('create_timeline_entry', metadata.create_timeline_entry || false);
     formData.append('timeline_title', metadata.timeline_title || '');
     formData.append('is_billable', metadata.is_billable || false);
@@ -37,17 +41,6 @@ export const documentService = {
     return response.data;
   },
 
-  getPreviewBlob: async (documentId) => {
-    const response = await apiClient.get(`/documents/${documentId}/preview`, {
-      responseType: 'blob'
-    });
-    return response.data;
-  },
-
-  getPreviewUrl: (documentId) => {
-    return `http://localhost:3001/api/documents/${documentId}/preview`;
-  },
-
   updateDocument: async (documentId, metadata) => {
     const response = await apiClient.put(`/documents/${documentId}`, metadata);
     return response.data;
@@ -63,5 +56,9 @@ export const documentService = {
       params: { q: query }
     });
     return response.data;
+  },
+
+  getPreviewUrl: (documentId) => {
+    return `${apiClient.defaults.baseURL}/documents/${documentId}/preview`;
   }
 };
