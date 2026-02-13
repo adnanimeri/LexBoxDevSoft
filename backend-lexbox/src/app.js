@@ -6,6 +6,9 @@ const path = require('path');
 const clientRoutes = require('./routes/client.routes');
 const timelineRoutes = require('./routes/timeline.routes');
 const dossierRoutes = require('./routes/dossier.routes');
+const billingRoutes = require('./routes/billing.routes');
+const documentRoutes = require('./routes/document.routes');
+
 
 
 const app = express();
@@ -49,6 +52,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/timeline', timelineRoutes);
 app.use('/api/dossiers', dossierRoutes);
+app.use('/api', billingRoutes);
+app.use('/api/documents', documentRoutes);
 
 // 404 Handler
 app.use((req, res) => {
