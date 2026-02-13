@@ -4,6 +4,8 @@
 // src/pages/clients/ClientDetails.js
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import BillingDashboard from '../../components/billing/BillingDashboard';
+import DocumentsList from '../../components/documents/DocumentsList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
@@ -38,6 +40,9 @@ const ClientDetails = () => {
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
+
+
+  
 
   // Fetch client details
   const { data: clientData, isLoading: clientLoading, error: clientError } = useQuery({
@@ -305,21 +310,15 @@ const ClientDetails = () => {
             <Timeline dossierId={primaryDossier.id} />
           )}
 
-          {/* Documents tab */}
-          {activeTab === 'documents' && (
-            <div className="text-center py-12 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Document management coming in Phase 4</p>
-            </div>
-          )}
+            {/* Documents tab */}
+            {activeTab === 'documents' && primaryDossier && (
+              <DocumentsList dossierId={primaryDossier.id} canUpload={true} />
+            )}
 
-          {/* Billing tab */}
-          {activeTab === 'billing' && (
-            <div className="text-center py-12 text-gray-500">
-              <DollarSign className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Billing & Invoices coming in Phase 5</p>
-            </div>
-          )}
+            {/* Billing tab */}
+            {activeTab === 'billing' && primaryDossier && (
+              <BillingDashboard dossierId={primaryDossier.id} />
+            )}
         </div>
       </div>
 

@@ -21,11 +21,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import DocumentPreviewModal from './DocumentPreviewModal';
-import UploadDocumentsModal from './UploadDocumentsModal';
+import DocumentUploadModal from './DocumentUploadModal';
 
 /**
  * Documents list component with upload, preview, and management capabilities
- * Supports drag-and-drop uploads and document categorization
  */
 const DocumentsList = ({ dossierId, canUpload = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,24 +38,27 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   const queryClient = useQueryClient();
 
   // Fetch documents
- const { data: documents, isLoading, error } = useQuery({
-  queryKey: ['documents', dossierId],
-  queryFn: () => dossierId ? documentService.getDocuments(dossierId) : [],
-  enabled: !!dossierId,
-  staleTime: 60000
-});
+  const { data: documentsData, isLoading, error } = useQuery({
+    queryKey: ['documents', dossierId],
+    queryFn: () => dossierId ? documentService.getDocuments(dossierId) : { data: [] },
+    enabled: !!dossierId,
+    staleTime: 60000
+  });
+
+  // Extract documents array from response
+  const documents = documentsData?.data || [];
 
   // Delete document mutation
-const deleteDocumentMutation = useMutation({
-  mutationFn: (documentId) => documentService.deleteDocument(documentId),
-  onSuccess: () => {
-    queryClient.invalidateQueries(['documents', dossierId]);
-    showSuccess('Document deleted successfully');
-  },
-  onError: () => {
-    showError('Failed to delete document');
-  }
-});
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (documentId) => documentService.deleteDocument(documentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['documents', dossierId]);
+      showSuccess('Document deleted successfully');
+    },
+    onError: () => {
+      showError('Failed to delete document');
+    }
+  });
 
   /**
    * Get file type icon
@@ -86,16 +88,16 @@ const deleteDocumentMutation = useMutation({
   /**
    * Handle document download
    */
-  const handleDownload = async (document) => {
+  const handleDownload = async (doc) => {
     try {
-      const blob = await documentService.downloadDocument(document.id);
+      const blob = await documentService.downloadDocument(doc.id);
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
-      link.download = document.original_filename || document.filename;
-      document.body.appendChild(link);
+      link.download = doc.original_filename || doc.filename;
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       showSuccess('Document downloaded successfully');
     } catch (error) {
@@ -106,8 +108,8 @@ const deleteDocumentMutation = useMutation({
   /**
    * Handle document preview
    */
-  const handlePreview = (document) => {
-    setSelectedDocument(document);
+  const handlePreview = (doc) => {
+    setSelectedDocument(doc);
     setShowPreviewModal(true);
   };
 
@@ -121,38 +123,38 @@ const deleteDocumentMutation = useMutation({
   };
 
   // Filter documents based on search and category
-  const filteredDocuments = documents?.filter(doc => {
+  const filteredDocuments = documents.filter(doc => {
     const matchesSearch = !searchTerm || 
       doc.original_filename?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.document_category?.toLowerCase().includes(searchTerm.toLowerCase());
+      doc.category?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesCategory = categoryFilter === 'all' || 
-      doc.document_category === categoryFilter;
+      doc.category === categoryFilter;
     
     return matchesSearch && matchesCategory;
-  }) || [];
+  });
 
   // Get unique categories for filter
-  const categories = [...new Set(documents?.map(doc => doc.document_category).filter(Boolean))] || [];
+  const categories = [...new Set(documents.map(doc => doc.category).filter(Boolean))];
 
- if (!dossierId) {
-  return (
-    <div className="text-center py-12">
-      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-      <p className="text-lg font-medium text-gray-700 mb-2">
-        No Dossier Assigned to This Client
-      </p>
-      <p className="text-sm text-gray-500 mb-4">
-        Documents can only be uploaded after a dossier number has been assigned.
-      </p>
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
-        <p className="text-sm text-blue-800">
-          💡 To upload documents, first assign a dossier number to this client from the client details page.
+  if (!dossierId) {
+    return (
+      <div className="text-center py-12">
+        <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+        <p className="text-lg font-medium text-gray-700 mb-2">
+          No Dossier Assigned to This Client
         </p>
+        <p className="text-sm text-gray-500 mb-4">
+          Documents can only be uploaded after a dossier number has been assigned.
+        </p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+          <p className="text-sm text-blue-800">
+            💡 To upload documents, first assign a dossier number to this client from the client details page.
+          </p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   if (isLoading) {
     return (
@@ -218,18 +220,13 @@ const deleteDocumentMutation = useMutation({
       </div>
 
       {/* Documents grid/list */}
-       {filteredDocuments.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+      {filteredDocuments.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          {!dossierId ? (
-            <>
-              <p className="text-lg font-medium text-gray-700">No Dossier Assigned</p>
-              <p className="text-sm mt-2">Documents will be available after dossier number is assigned to this client</p>
-            </>
-          ) : searchTerm || categoryFilter !== 'all' ? (
+          {searchTerm || categoryFilter !== 'all' ? (
             <>
               <p className="text-lg font-medium text-gray-700">No Matching Documents</p>
-              <p className="text-sm mt-2">No documents match your search criteria for this dossier</p>
+              <p className="text-sm mt-2">No documents match your search criteria</p>
               <button
                 onClick={() => {
                   setSearchTerm('');
@@ -242,8 +239,8 @@ const deleteDocumentMutation = useMutation({
             </>
           ) : (
             <>
-              <p className="text-lg font-medium text-gray-700">No Documents for This Dossier</p>
-              <p className="text-sm mt-2">No documents have been uploaded for this dossier yet</p>
+              <p className="text-lg font-medium text-gray-700">No Documents Yet</p>
+              <p className="text-sm mt-2">No documents have been uploaded for this dossier</p>
             </>
           )}
           {canUpload && hasPermission('documents:create') && !searchTerm && categoryFilter === 'all' && (
@@ -258,12 +255,12 @@ const deleteDocumentMutation = useMutation({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDocuments.map((document) => {
-            const FileIcon = getFileTypeIcon(document.mime_type, document.original_filename);
+          {filteredDocuments.map((doc) => {
+            const FileIcon = getFileTypeIcon(doc.mime_type, doc.original_filename);
             
             return (
               <div
-                key={document.id}
+                key={doc.id}
                 className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
               >
                 {/* Document header */}
@@ -274,10 +271,10 @@ const deleteDocumentMutation = useMutation({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {document.original_filename || document.filename}
+                        {doc.original_filename || doc.filename}
                       </h4>
                       <p className="text-xs text-gray-500">
-                        {formatFileSize(document.file_size)}
+                        {formatFileSize(doc.file_size)}
                       </p>
                     </div>
                   </div>
@@ -285,22 +282,22 @@ const deleteDocumentMutation = useMutation({
 
                 {/* Document metadata */}
                 <div className="space-y-2 mb-4">
-                  {document.document_category && (
+                  {doc.category && (
                     <div className="flex items-center text-xs text-gray-500">
                       <span className="inline-flex px-2 py-1 bg-gray-100 text-gray-800 rounded-full">
-                        {document.document_category}
+                        {doc.category}
                       </span>
                     </div>
                   )}
                   
-                  {document.physical_location && (
+                  {doc.physical_location && (
                     <div className="flex items-center text-xs text-gray-500">
-                      <span>Physical: {document.physical_location}</span>
+                      <span>Physical: {doc.physical_location}</span>
                     </div>
                   )}
                   
                   <div className="text-xs text-gray-500">
-                    Uploaded {new Date(document.uploaded_at).toLocaleDateString()}
+                    Uploaded {new Date(doc.createdAt || doc.created_at).toLocaleDateString()}
                   </div>
                 </div>
 
@@ -309,7 +306,7 @@ const deleteDocumentMutation = useMutation({
                   <div className="flex items-center space-x-2">
                     {/* Preview button */}
                     <button
-                      onClick={() => handlePreview(document)}
+                      onClick={() => handlePreview(doc)}
                       className="p-1 text-gray-400 hover:text-blue-600 rounded"
                       title="Preview"
                     >
@@ -318,7 +315,7 @@ const deleteDocumentMutation = useMutation({
 
                     {/* Download button */}
                     <button
-                      onClick={() => handleDownload(document)}
+                      onClick={() => handleDownload(doc)}
                       className="p-1 text-gray-400 hover:text-green-600 rounded"
                       title="Download"
                     >
@@ -339,7 +336,7 @@ const deleteDocumentMutation = useMutation({
                   {/* Delete button */}
                   {hasPermission('documents:delete') && (
                     <button
-                      onClick={() => handleDelete(document.id)}
+                      onClick={() => handleDelete(doc.id)}
                       className="p-1 text-gray-400 hover:text-red-600 rounded"
                       title="Delete"
                     >
@@ -355,10 +352,13 @@ const deleteDocumentMutation = useMutation({
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <UploadDocumentsModal
-          isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
+        <DocumentUploadModal
           dossierId={dossierId}
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={() => {
+            setShowUploadModal(false);
+            queryClient.invalidateQueries(['documents', dossierId]);
+          }}
         />
       )}
 
