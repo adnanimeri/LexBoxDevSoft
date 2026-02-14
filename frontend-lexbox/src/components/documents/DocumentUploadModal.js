@@ -25,7 +25,7 @@ const DocumentUploadModal = ({ dossierId, onClose, onSuccess }) => {
   const [hourlyRate, setHourlyRate] = useState('150');
 
   const { showSuccess, showError } = useNotification();
-
+/*
   const uploadMutation = useMutation({
     mutationFn: () => documentService.uploadDocuments(dossierId, files, {
       category,
@@ -46,6 +46,30 @@ const DocumentUploadModal = ({ dossierId, onClose, onSuccess }) => {
       showError(error.response?.data?.message || 'Failed to upload documents');
     }
   });
+*/
+  const uploadMutation = useMutation({
+    mutationFn: () => documentService.uploadDocuments(dossierId, files, {
+      category,
+      physical_location: physicalLocation,
+      is_confidential: isConfidential,
+      encryption: isConfidential ? 'aes256' : 'none',
+      description,
+      create_timeline_entry: createTimelineEntry,
+      timeline_title: timelineTitle,
+      is_billable: isBillable,
+      hours_worked: parseFloat(hoursWorked) || 0,
+      hourly_rate: parseFloat(hourlyRate) || 0
+    }),
+    onSuccess: (data) => {
+      const count = data?.data?.length || files.length;
+      showSuccess(`${count} document(s) uploaded successfully${isConfidential ? ' (encrypted)' : ''}`);
+      onSuccess();
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to upload documents');
+    }
+  });
+
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -240,7 +264,7 @@ const DocumentUploadModal = ({ dossierId, onClose, onSuccess }) => {
               />
               <label htmlFor="confidential" className="ml-2 text-sm text-gray-700 flex items-center">
                 <AlertCircle className="h-4 w-4 text-red-500 mr-1" />
-                Mark as confidential
+                 Mark as confidential (encrypts file)
               </label>
             </div>
 
