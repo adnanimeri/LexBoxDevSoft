@@ -1,4 +1,4 @@
-//=================================================================
+// ===================================================================
 // DOCUMENT SERVICE
 // ===================================================================
 // src/services/document.service.js
@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const fs = require('fs').promises;
 const path = require('path');
+const { encryptFile, decryptFile } = require('../utils/encryption');
 
 class DocumentService {
   /**
@@ -77,7 +78,7 @@ class DocumentService {
   }
 
   /**
-   * Create/Upload documents
+   * Create/Upload documents with optional encryption
    */
   async createDocuments(dossierId, files, metadata, userId) {
     const transaction = await sequelize.transaction();
@@ -89,14 +90,28 @@ class DocumentService {
       }
 
       const uploadedDocs = [];
+      const encryptionType = metadata.encryption || 'none';
 
       for (const file of files) {
+        let filePath = file.path;
+        let fileSize = file.size;
+
+        // Encrypt file if requested
+        if (encryptionType === 'aes256') {
+          const encryptedPath = file.path + '.enc';
+          fileSize = await encryptFile(file.path, encryptedPath);
+          
+          // Remove original unencrypted file
+          await fs.unlink(file.path);
+          filePath = encryptedPath;
+        }
+
         const document = await Document.create({
           dossier_id: dossierId,
           original_filename: file.originalname,
-          filename: file.filename,
-          file_path: file.path,
-          file_size: file.size,
+          filename: path.basename(filePath),
+          file_path: filePath,
+          file_size: fileSize,
           mime_type: file.mimetype,
           category: metadata.category || 'other',
           physical_location: metadata.physical_location || null,
@@ -105,7 +120,8 @@ class DocumentService {
           document_date: metadata.document_date || new Date(),
           uploaded_by: userId,
           metadata: {
-            encryption: metadata.encryption || 'none'
+            encryption: encryptionType,
+            original_size: file.size
           }
         }, { transaction });
 
@@ -122,7 +138,7 @@ class DocumentService {
             document_id: document.id,
             node_type: 'document',
             title: metadata.timeline_title || `Document uploaded: ${file.originalname}`,
-            description: `Document "${file.originalname}" was uploaded`,
+            description: `Document "${file.originalname}" was uploaded${encryptionType !== 'none' ? ' (encrypted)' : ''}`,
             activity_date: new Date(),
             status: 'completed',
             is_billable: isBillable,
@@ -196,7 +212,7 @@ class DocumentService {
   }
 
   /**
-   * Get document file for download/preview
+   * Get document file for download/preview (decrypts if needed)
    */
   async getDocumentFile(documentId) {
     const document = await Document.findByPk(documentId);
@@ -211,14 +227,22 @@ class DocumentService {
       throw new Error('File not found on server');
     }
 
-    // Read the file
-    const buffer = await fs.readFile(document.file_path);
+    let buffer;
+    const encryptionType = document.metadata?.encryption || 'none';
+
+    // Decrypt if encrypted
+    if (encryptionType === 'aes256') {
+      buffer = await decryptFile(document.file_path);
+    } else {
+      buffer = await fs.readFile(document.file_path);
+    }
 
     return {
       buffer: buffer,
       filename: document.original_filename,
       mimetype: document.mime_type,
-      path: document.file_path
+      path: document.file_path,
+      encrypted: encryptionType !== 'none'
     };
   }
 
@@ -228,14 +252,15 @@ class DocumentService {
   async getDocumentStats(dossierId) {
     const documents = await Document.findAll({
       where: { dossier_id: dossierId },
-      attributes: ['category', 'file_size', 'is_confidential']
+      attributes: ['category', 'file_size', 'is_confidential', 'metadata']
     });
 
     const stats = {
       total: documents.length,
       totalSize: documents.reduce((sum, doc) => sum + (doc.file_size || 0), 0),
       byCategory: {},
-      confidentialCount: documents.filter(d => d.is_confidential).length
+      confidentialCount: documents.filter(d => d.is_confidential).length,
+      encryptedCount: documents.filter(d => d.metadata?.encryption === 'aes256').length
     };
 
     documents.forEach(doc => {
