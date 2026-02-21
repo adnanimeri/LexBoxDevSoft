@@ -14,7 +14,10 @@ import {
   Search,
   File,
   Image,
-  Archive
+  Archive,
+  Grid,
+  List,
+  Lock
 } from 'lucide-react';
 import { documentService } from '../../services/documentService';
 import { useAuth } from '../../context/AuthContext';
@@ -29,6 +32,7 @@ import DocumentUploadModal from './DocumentUploadModal';
 const DocumentsList = ({ dossierId, canUpload = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
@@ -174,7 +178,7 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
 
   return (
     <div className="space-y-4">
-      {/* Header with search and filters */}
+      {/* Header with search, filters, and view toggle */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex-1 max-w-md">
           <div className="relative">
@@ -190,6 +194,32 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
         </div>
 
         <div className="flex items-center space-x-3">
+          {/* View toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'grid' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              title="Grid view"
+            >
+              <Grid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'list' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+
           {/* Category filter */}
           {categories.length > 0 && (
             <select
@@ -219,7 +249,7 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
         </div>
       </div>
 
-      {/* Documents grid/list */}
+      {/* Documents display */}
       {filteredDocuments.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -253,10 +283,12 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
             </button>
           )}
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
+        /* Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocuments.map((doc) => {
             const FileIcon = getFileTypeIcon(doc.mime_type, doc.original_filename);
+            const isEncrypted = doc.metadata?.encryption === 'aes256';
             
             return (
               <div
@@ -266,8 +298,11 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                 {/* Document header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start space-x-3 flex-1 min-w-0">
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 relative">
                       <FileIcon className="h-8 w-8 text-blue-500" />
+                      {isEncrypted && (
+                        <Lock className="h-3 w-3 text-red-500 absolute -bottom-1 -right-1" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
@@ -287,6 +322,11 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                       <span className="inline-flex px-2 py-1 bg-gray-100 text-gray-800 rounded-full">
                         {doc.category}
                       </span>
+                      {isEncrypted && (
+                        <span className="ml-2 inline-flex px-2 py-1 bg-red-100 text-red-800 rounded-full">
+                          Encrypted
+                        </span>
+                      )}
                     </div>
                   )}
                   
@@ -304,7 +344,6 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                 {/* Document actions */}
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <div className="flex items-center space-x-2">
-                    {/* Preview button */}
                     <button
                       onClick={() => handlePreview(doc)}
                       className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -312,8 +351,6 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-
-                    {/* Download button */}
                     <button
                       onClick={() => handleDownload(doc)}
                       className="p-1 text-gray-400 hover:text-green-600 rounded"
@@ -321,8 +358,6 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                     >
                       <Download className="h-4 w-4" />
                     </button>
-
-                    {/* Edit button */}
                     {hasPermission('documents:update') && (
                       <button
                         className="p-1 text-gray-400 hover:text-orange-600 rounded"
@@ -332,8 +367,6 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                       </button>
                     )}
                   </div>
-
-                  {/* Delete button */}
                   {hasPermission('documents:delete') && (
                     <button
                       onClick={() => handleDelete(doc.id)}
@@ -347,6 +380,114 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* List View */
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Document
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Size
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Location
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Uploaded
+                </th>
+                <th scope="col" className="relative px-6 py-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredDocuments.map((doc) => {
+                const FileIcon = getFileTypeIcon(doc.mime_type, doc.original_filename);
+                const isEncrypted = doc.metadata?.encryption === 'aes256';
+                
+                return (
+                  <tr key={doc.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 relative">
+                          <FileIcon className="h-6 w-6 text-blue-500" />
+                          {isEncrypted && (
+                            <Lock className="h-3 w-3 text-red-500 absolute -bottom-1 -right-1" />
+                          )}
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                            {doc.original_filename || doc.filename}
+                          </p>
+                          {isEncrypted && (
+                            <span className="text-xs text-red-600">Encrypted</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {doc.category && (
+                        <span className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                          {doc.category}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatFileSize(doc.file_size)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {doc.physical_location || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(doc.createdAt || doc.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handlePreview(doc)}
+                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                          title="Preview"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownload(doc)}
+                          className="p-1 text-gray-400 hover:text-green-600 rounded"
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                        {hasPermission('documents:update') && (
+                          <button
+                            className="p-1 text-gray-400 hover:text-orange-600 rounded"
+                            title="Edit metadata"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                        )}
+                        {hasPermission('documents:delete') && (
+                          <button
+                            onClick={() => handleDelete(doc.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

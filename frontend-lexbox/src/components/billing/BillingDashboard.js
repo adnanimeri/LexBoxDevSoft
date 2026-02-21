@@ -10,7 +10,9 @@ import {
   CreditCard,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Download,
+  Mail
 } from 'lucide-react';
 import { billingService } from '../../services/billingService';
 import { useNotification } from '../../context/NotificationContext';
@@ -42,16 +44,29 @@ const BillingDashboard = ({ dossierId }) => {
     enabled: !!dossierId
   });
 
-  // Send invoice mutation
+  // Send invoice mutation (mark as sent)
   const sendInvoiceMutation = useMutation({
     mutationFn: (invoiceId) => billingService.sendInvoice(invoiceId),
     onSuccess: () => {
       queryClient.invalidateQueries(['invoices', dossierId]);
       queryClient.invalidateQueries(['billing-summary', dossierId]);
-      showSuccess('Invoice sent successfully');
+      showSuccess('Invoice marked as sent');
     },
     onError: (error) => {
       showError(error.response?.data?.message || 'Failed to send invoice');
+    }
+  });
+
+  // Email invoice mutation
+  const emailInvoiceMutation = useMutation({
+    mutationFn: (invoiceId) => billingService.emailInvoice(invoiceId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['invoices', dossierId]);
+      queryClient.invalidateQueries(['billing-summary', dossierId]);
+      showSuccess(data.message || 'Invoice emailed successfully');
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to email invoice');
     }
   });
 
@@ -71,6 +86,31 @@ const BillingDashboard = ({ dossierId }) => {
   const handleRecordPayment = (invoiceId) => {
     setPaymentInvoiceId(invoiceId);
     setShowPaymentModal(true);
+  };
+
+  // Download PDF
+  const handleDownloadPDF = async (invoice) => {
+    try {
+      const blob = await billingService.downloadPDF(invoice.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `Invoice-${invoice.invoice_number}.pdf`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showSuccess('PDF downloaded successfully');
+    } catch (error) {
+      showError('Failed to download PDF');
+    }
+  };
+
+  // Email invoice
+  const handleEmailInvoice = (invoice) => {
+    if (window.confirm(`Send invoice ${invoice.invoice_number} via email to the client?`)) {
+      emailInvoiceMutation.mutate(invoice.id);
+    }
   };
 
   const summary = summaryData?.data || {};
@@ -226,15 +266,39 @@ const BillingDashboard = ({ dossierId }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
+                      {/* Download PDF - always available */}
+                      <button
+                        onClick={() => handleDownloadPDF(invoice)}
+                        className="text-gray-600 hover:text-gray-800"
+                        title="Download PDF"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+
+                      {/* Email Invoice - available for non-cancelled invoices */}
+                      {invoice.status !== 'cancelled' && (
+                        <button
+                          onClick={() => handleEmailInvoice(invoice)}
+                          disabled={emailInvoiceMutation.isPending}
+                          className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                          title="Email to Client"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </button>
+                      )}
+
+                      {/* Mark as Sent - only for draft */}
                       {invoice.status === 'draft' && (
                         <button
                           onClick={() => sendInvoiceMutation.mutate(invoice.id)}
                           className="text-blue-600 hover:text-blue-800"
-                          title="Send Invoice"
+                          title="Mark as Sent"
                         >
                           <Send className="h-4 w-4" />
                         </button>
                       )}
+
+                      {/* Record Payment - for sent/partial/overdue */}
                       {['sent', 'partial', 'overdue'].includes(invoice.status) && (
                         <button
                           onClick={() => handleRecordPayment(invoice.id)}
@@ -244,6 +308,8 @@ const BillingDashboard = ({ dossierId }) => {
                           <CreditCard className="h-4 w-4" />
                         </button>
                       )}
+
+                      {/* Cancel - only for draft/sent */}
                       {['draft', 'sent'].includes(invoice.status) && (
                         <button
                           onClick={() => cancelInvoiceMutation.mutate(invoice.id)}

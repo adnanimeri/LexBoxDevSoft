@@ -3,7 +3,7 @@
 // ===================================================================
 // src/pages/clients/ClientList.js
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, Eye, Edit, Archive } from 'lucide-react';
 import { clientService } from '../../services/clientService';
@@ -25,6 +25,7 @@ const ClientList = () => {
   
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const navigate = useNavigate();
 
   // Fetch clients with search and pagination
   const { data: clientsData, isLoading, error, refetch } = useQuery({
@@ -38,13 +39,21 @@ const ClientList = () => {
       sortOrder
     }),
     keepPreviousData: true,
-    staleTime: 30000 // 30 seconds
+    staleTime: 30000
   });
+
+  /**
+   * Handle client row click
+   */
+  const handleRowClick = (clientId) => {
+    navigate(`/clients/${clientId}`);
+  };
 
   /**
    * Handle client archiving
    */
-  const handleArchiveClient = async (clientId) => {
+  const handleArchiveClient = async (e, clientId) => {
+    e.stopPropagation(); // Prevent row click
     if (!window.confirm('Are you sure you want to archive this client?')) return;
     
     try {
@@ -228,7 +237,11 @@ const ClientList = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {clients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={client.id} 
+                      onClick={() => handleRowClick(client.id)}
+                      className="hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
@@ -273,23 +286,29 @@ const ClientList = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
-                          <Link
-                            to={`/clients/${client.id}`}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/clients/${client.id}`);
+                            }}
                             className="text-blue-600 hover:text-blue-900"
                           >
                             <Eye className="h-4 w-4" />
-                          </Link>
+                          </button>
                           {hasPermission('clients:update') && (
-                            <Link
-                              to={`/clients/${client.id}/edit`}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/clients/${client.id}/edit`);
+                              }}
                               className="text-green-600 hover:text-green-900"
                             >
                               <Edit className="h-4 w-4" />
-                            </Link>
+                            </button>
                           )}
                           {hasPermission('clients:delete') && (
                             <button
-                              onClick={() => handleArchiveClient(client.id)}
+                              onClick={(e) => handleArchiveClient(e, client.id)}
                               className="text-red-600 hover:text-red-900"
                             >
                               <Archive className="h-4 w-4" />
@@ -306,7 +325,11 @@ const ClientList = () => {
             {/* Mobile view */}
             <div className="sm:hidden">
               {clients.map((client) => (
-                <div key={client.id} className="px-4 py-4 border-b border-gray-200">
+                <div 
+                  key={client.id} 
+                  onClick={() => handleRowClick(client.id)}
+                  className="px-4 py-4 border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-colors"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -325,12 +348,7 @@ const ClientList = () => {
                         </div>
                       </div>
                     </div>
-                    <Link
-                      to={`/clients/${client.id}`}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <Eye className="h-5 w-5" />
-                    </Link>
+                    <Eye className="h-5 w-5 text-blue-600" />
                   </div>
                 </div>
               ))}

@@ -27,7 +27,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home, permission: null },
     { name: 'Clients', href: '/clients', icon: Users, permission: 'clients:read' },
-    { name: 'Documents', href: '/documents', icon: FileText, permission: 'documents:read' },
+    { name: 'Templates', href: '/templates', icon: FileText, permission: 'documents:read' },
     { name: 'Calendar', href: '/calendar', icon: Calendar, permission: 'calendar:read' },
     { name: 'Billing', href: '/billing', icon: CreditCard, permission: 'billing:read' },
     { name: 'Admin', href: '/admin', icon: Settings, permission: 'admin' },
