@@ -1,7 +1,4 @@
 // src/App.js
-//This is part!
-
-// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -18,6 +15,7 @@ import ClientDetails from './pages/clients/ClientDetails';
 import CreateClient from './pages/clients/CreateClient';
 import EditClient from './pages/clients/EditClient';
 import AdminPanel from './pages/admin/AdminPanel';
+import SettingsPage from './pages/settings/SettingsPage';
 
 // Styles
 import './styles/globals.css';
@@ -91,6 +89,14 @@ function App() {
                     </Layout>
                   </ProtectedRoute>
                 } />
+
+                <Route path="/settings" element={
+                  <ProtectedRoute requiredRole="admin">
+                    <Layout>
+                      <SettingsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
               </Routes>
             </div>
           </Router>
@@ -101,5 +107,3 @@ function App() {
 }
 
 export default App;
-
-

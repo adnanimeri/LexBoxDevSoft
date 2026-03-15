@@ -1,8 +1,9 @@
 // src/components/billing/CreateInvoiceModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { X, FileText, Check } from 'lucide-react';
 import { billingService } from '../../services/billingService';
+import { settingsService } from '../../services/settingsService';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -14,6 +15,21 @@ const CreateInvoiceModal = ({ dossierId, onClose, onSuccess }) => {
   const [notes, setNotes] = useState('');
 
   const { showSuccess, showError } = useNotification();
+
+  // Fetch billing defaults
+  const { data: defaultsData } = useQuery({
+    queryKey: ['billing-defaults'],
+    queryFn: () => settingsService.getBillingDefaults(),
+    staleTime: 60000
+  });
+
+  // Apply defaults when loaded
+  useEffect(() => {
+    if (defaultsData?.data) {
+      setTaxRate(parseFloat(defaultsData.data.default_tax_rate) || 0);
+      setDueDays(parseInt(defaultsData.data.default_due_days) || 30);
+    }
+  }, [defaultsData]);
 
   // Fetch unbilled items
   const { data: unbilledData, isLoading } = useQuery({
@@ -54,6 +70,7 @@ const CreateInvoiceModal = ({ dossierId, onClose, onSuccess }) => {
     });
   };
 
+  /*
   const getSelectedTotal = () => {
     if (selectAll) {
       return totalUnbilled;
@@ -62,6 +79,17 @@ const CreateInvoiceModal = ({ dossierId, onClose, onSuccess }) => {
       .filter(item => selectedItems.includes(item.id))
       .reduce((sum, item) => sum + (parseFloat(item.billing_amount) || 0), 0);
   };
+*/
+
+const getSelectedTotal = () => {
+  if (selectAll) {
+    // Calculate total from all items
+    return unbilledItems.reduce((sum, item) => sum + (parseFloat(item.billing_amount) || 0), 0);
+  }
+  return unbilledItems
+    .filter(item => selectedItems.includes(item.id))
+    .reduce((sum, item) => sum + (parseFloat(item.billing_amount) || 0), 0);
+};
 
   const subtotal = getSelectedTotal();
   const taxAmount = subtotal * (taxRate / 100);

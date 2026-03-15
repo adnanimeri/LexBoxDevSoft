@@ -1,8 +1,9 @@
 // src/components/documents/DocumentUploadModal.js
-import React, { useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { X, Upload, File, Trash2, AlertCircle, Clock } from 'lucide-react';
 import { documentService } from '../../services/documentService';
+import { settingsService } from '../../services/settingsService';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -25,28 +26,21 @@ const DocumentUploadModal = ({ dossierId, onClose, onSuccess }) => {
   const [hourlyRate, setHourlyRate] = useState('150');
 
   const { showSuccess, showError } = useNotification();
-/*
-  const uploadMutation = useMutation({
-    mutationFn: () => documentService.uploadDocuments(dossierId, files, {
-      category,
-      physical_location: physicalLocation,
-      is_confidential: isConfidential,
-      description,
-      create_timeline_entry: createTimelineEntry,
-      timeline_title: timelineTitle,
-      is_billable: isBillable,
-      hours_worked: parseFloat(hoursWorked) || 0,
-      hourly_rate: parseFloat(hourlyRate) || 0
-    }),
-    onSuccess: (data) => {
-      showSuccess(`${data.data.length} document(s) uploaded successfully`);
-      onSuccess();
-    },
-    onError: (error) => {
-      showError(error.response?.data?.message || 'Failed to upload documents');
-    }
+
+  // Fetch billing defaults
+  const { data: defaultsData } = useQuery({
+    queryKey: ['billing-defaults'],
+    queryFn: () => settingsService.getBillingDefaults(),
+    staleTime: 60000
   });
-*/
+
+  // Apply default hourly rate when loaded
+  useEffect(() => {
+    if (defaultsData?.data?.default_hourly_rate) {
+      setHourlyRate(String(defaultsData.data.default_hourly_rate));
+    }
+  }, [defaultsData]);
+
   const uploadMutation = useMutation({
     mutationFn: () => documentService.uploadDocuments(dossierId, files, {
       category,
@@ -69,7 +63,6 @@ const DocumentUploadModal = ({ dossierId, onClose, onSuccess }) => {
       showError(error.response?.data?.message || 'Failed to upload documents');
     }
   });
-
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();

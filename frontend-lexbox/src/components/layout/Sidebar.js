@@ -30,7 +30,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Templates', href: '/templates', icon: FileText, permission: 'documents:read' },
     { name: 'Calendar', href: '/calendar', icon: Calendar, permission: 'calendar:read' },
     { name: 'Billing', href: '/billing', icon: CreditCard, permission: 'billing:read' },
-    { name: 'Admin', href: '/admin', icon: Settings, permission: 'admin' },
+    { name: 'Settings', href: '/settings', icon: Settings, permission: 'admin' },
   ];
 
   // Filter navigation items based on user permissions
