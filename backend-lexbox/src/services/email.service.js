@@ -7,25 +7,74 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   constructor() {
-    // Create transporter - configure with your SMTP settings
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+    this.transporter = null;
+    this.fromEmail = null;
+    this.companyName = null;
+    this.initialized = false;
+  }
 
-    this.fromEmail = process.env.SMTP_FROM || 'noreply@lexbox.com';
-    this.companyName = process.env.COMPANY_NAME || 'LexBox Legal Services';
+  /**
+   * Initialize or refresh email configuration from settings
+   */
+  async refreshConfig() {
+    try {
+      const settingsService = require('./settings.service');
+      
+      const host = await settingsService.get('smtp_host', 'smtp.gmail.com');
+      const port = await settingsService.get('smtp_port', 587);
+      const secure = await settingsService.get('smtp_secure', false);
+      const user = await settingsService.get('smtp_user', '');
+      const pass = await settingsService.get('smtp_pass', '');
+      
+      this.fromEmail = await settingsService.get('smtp_from', 'noreply@lexbox.com');
+      this.companyName = await settingsService.get('company_name', 'LexBox Legal Services');
+
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: parseInt(port),
+        secure: secure === true || secure === 'true',
+        auth: {
+          user,
+          pass
+        }
+      });
+
+      this.initialized = true;
+      return true;
+    } catch (error) {
+      console.error('Error initializing email service:', error);
+      // Fallback to env variables
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+      this.fromEmail = process.env.SMTP_FROM || 'noreply@lexbox.com';
+      this.companyName = process.env.COMPANY_NAME || 'LexBox Legal Services';
+      this.initialized = true;
+      return false;
+    }
+  }
+
+  /**
+   * Ensure service is initialized
+   */
+  async ensureInitialized() {
+    if (!this.initialized) {
+      await this.refreshConfig();
+    }
   }
 
   /**
    * Send invoice email to client
    */
   async sendInvoiceEmail(invoice, client, pdfBuffer) {
+    await this.ensureInitialized();
+
     if (!client.email) {
       throw new Error('Client does not have an email address');
     }
@@ -50,7 +99,6 @@ class EmailService {
             .invoice-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .amount { font-size: 24px; font-weight: bold; color: #2563eb; }
             .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-            .btn { display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; }
           </style>
         </head>
         <body>
@@ -113,80 +161,24 @@ class EmailService {
   }
 
   /**
-   * Send payment confirmation email
+   * Send test email
    */
-  async sendPaymentConfirmation(invoice, client, payment) {
-    if (!client.email) {
-      throw new Error('Client does not have an email address');
-    }
-
-    const clientName = `${client.first_name} ${client.last_name}`;
-    const paymentAmount = parseFloat(payment.amount).toFixed(2);
-    const balance = (parseFloat(invoice.total_amount) - parseFloat(invoice.amount_paid)).toFixed(2);
+  async sendTestEmail(toEmail) {
+    await this.refreshConfig(); // Always refresh for test
 
     const mailOptions = {
       from: `"${this.companyName}" <${this.fromEmail}>`,
-      to: client.email,
-      subject: `Payment Received - Invoice ${invoice.invoice_number}`,
+      to: toEmail,
+      subject: `Test Email - ${this.companyName}`,
       html: `
         <!DOCTYPE html>
         <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #10b981; color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9fafb; }
-            .payment-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .amount { font-size: 24px; font-weight: bold; color: #10b981; }
-            .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Payment Received</h1>
-            </div>
-            <div class="content">
-              <p>Dear ${clientName},</p>
-              
-              <p>Thank you! We have received your payment for invoice <strong>${invoice.invoice_number}</strong>.</p>
-              
-              <div class="payment-details">
-                <table style="width: 100%;">
-                  <tr>
-                    <td><strong>Payment Amount:</strong></td>
-                    <td class="amount">€${paymentAmount}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Payment Date:</strong></td>
-                    <td>${new Date(payment.payment_date).toLocaleDateString()}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Payment Method:</strong></td>
-                    <td>${payment.payment_method}</td>
-                  </tr>
-                  ${payment.reference_number ? `
-                  <tr>
-                    <td><strong>Reference:</strong></td>
-                    <td>${payment.reference_number}</td>
-                  </tr>
-                  ` : ''}
-                  <tr>
-                    <td><strong>Remaining Balance:</strong></td>
-                    <td>€${balance}</td>
-                  </tr>
-                </table>
-              </div>
-              
-              ${parseFloat(balance) <= 0 ? '<p><strong>This invoice is now fully paid. Thank you!</strong></p>' : ''}
-              
-              <p>Best regards,<br>${this.companyName}</p>
-            </div>
-            <div class="footer">
-              <p>This is an automated email. Please do not reply directly to this message.</p>
-            </div>
-          </div>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2563eb;">Email Configuration Test</h2>
+          <p>This is a test email from <strong>${this.companyName}</strong>.</p>
+          <p>If you received this email, your email settings are configured correctly!</p>
+          <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">Sent from LexBox</p>
         </body>
         </html>
       `
@@ -200,6 +192,8 @@ class EmailService {
    * Verify SMTP connection
    */
   async verifyConnection() {
+    await this.ensureInitialized();
+    
     try {
       await this.transporter.verify();
       return true;

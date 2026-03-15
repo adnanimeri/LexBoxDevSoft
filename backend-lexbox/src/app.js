@@ -8,6 +8,7 @@ const timelineRoutes = require('./routes/timeline.routes');
 const dossierRoutes = require('./routes/dossier.routes');
 const billingRoutes = require('./routes/billing.routes');
 const documentRoutes = require('./routes/document.routes');
+const settingsRoutes = require('./routes/settings.routes');
 
 
 
@@ -54,6 +55,7 @@ app.use('/api/timeline', timelineRoutes);
 app.use('/api/dossiers', dossierRoutes);
 app.use('/api', billingRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // 404 Handler
 app.use((req, res) => {
