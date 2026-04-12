@@ -121,24 +121,22 @@ const Client = sequelize.define('Client', {
   timestamps: true,
   underscored: true,
   indexes: [
+    // Per-org uniqueness: same email/personal_number allowed across different orgs
     {
-      fields: ['email']
+      unique: true,
+      fields: ['organization_id', 'email'],
+      where: { email: { [require('sequelize').Op.ne]: null } }
     },
     {
-      fields: ['personal_number']
+      unique: true,
+      fields: ['organization_id', 'personal_number'],
+      where: { personal_number: { [require('sequelize').Op.ne]: null } }
     },
-    {
-      fields: ['status']
-    },
-    {
-      fields: ['registration_date']
-    },
-    {
-      fields: ['created_at']
-    },
-    {
-      fields: ['created_by']
-    }
+    { fields: ['organization_id'] },
+    { fields: ['status'] },
+    { fields: ['registration_date'] },
+    { fields: ['created_at'] },
+    { fields: ['created_by'] }
   ],
   // Automatically update updated_at timestamp
   hooks: {

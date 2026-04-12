@@ -4,7 +4,6 @@ const sequelize = require('../config/database');
 
 class ClientService {
 
-  
   async getClients(filters = {}) {
     const {
       search = '',
@@ -12,14 +11,14 @@ class ClientService {
       page = 1,
       limit = 20,
       sortBy = 'registration_date',
-      sortOrder = 'DESC'
+      sortOrder = 'DESC',
+      organization_id = null
     } = filters;
 
     const where = {};
 
-    if (status && status !== 'all') {
-      where.status = status;
-    }
+    if (organization_id) where.organization_id = organization_id;
+    if (status && status !== 'all') where.status = status;
 
     if (search) {
       where[Op.or] = [
@@ -63,8 +62,12 @@ class ClientService {
     };
   }
 
-  async getClientById(clientId) {
-    const client = await Client.findByPk(clientId, {
+  async getClientById(clientId, organization_id = null) {
+    const where = { id: clientId };
+    if (organization_id) where.organization_id = organization_id;
+
+    const client = await Client.findOne({
+      where,
       include: [
         {
           model: Dossier,
@@ -85,28 +88,25 @@ class ClientService {
       ]
     });
 
-    if (!client) {
-      throw new Error('Client not found');
-    }
-
+    if (!client) throw new Error('Client not found');
     return client;
   }
 
-  async createClient(clientData, userId = null) {
+  async createClient(clientData, userId = null, organization_id = null) {
     const transaction = await sequelize.transaction();
 
     try {
-      const dataWithAudit = {
+      const client = await Client.create({
         ...clientData,
+        organization_id,
         created_by: userId,
         registration_date: new Date()
-      };
-
-      const client = await Client.create(dataWithAudit, { transaction });
+      }, { transaction });
 
       if (clientData.dossier_number) {
         await Dossier.create({
           client_id: client.id,
+          organization_id,
           dossier_number: clientData.dossier_number,
           title: clientData.dossier_title || `Case for ${client.first_name} ${client.last_name}`,
           legal_issue_type: clientData.legal_issue_type || 'other',
@@ -117,83 +117,71 @@ class ClientService {
       }
 
       await transaction.commit();
-      return await this.getClientById(client.id);
+      return await this.getClientById(client.id, organization_id);
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
   }
 
-  async updateClient(clientId, updateData, userId = null) {
-    const client = await Client.findByPk(clientId);
+  async updateClient(clientId, updateData, userId = null, organization_id = null) {
+    const where = { id: clientId };
+    if (organization_id) where.organization_id = organization_id;
 
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = await Client.findOne({ where });
+    if (!client) throw new Error('Client not found');
 
     const { dossier_number, dossier_title, legal_issue_type, assigned_to, ...clientFields } = updateData;
-
     await client.update(clientFields, { userId });
 
-    return await this.getClientById(client.id);
+    return await this.getClientById(client.id, organization_id);
   }
 
-  async archiveClient(clientId, userId = null) {
-    const client = await Client.findByPk(clientId);
+  async archiveClient(clientId, userId = null, organization_id = null) {
+    const where = { id: clientId };
+    if (organization_id) where.organization_id = organization_id;
 
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = await Client.findOne({ where });
+    if (!client) throw new Error('Client not found');
 
     await client.update({ status: 'archived' }, { userId });
-
     await Dossier.update(
-      { 
-        status: 'archived',
-        updated_by: userId 
-      },
-      { 
-        where: { client_id: clientId },
-        userId 
-      }
+      { status: 'archived', updated_by: userId },
+      { where: { client_id: clientId } }
     );
 
-    return await this.getClientById(client.id);
+    return await this.getClientById(client.id, organization_id);
   }
 
-  
+  async deleteClient(clientId, organization_id = null) {
+    const where = { id: clientId };
+    if (organization_id) where.organization_id = organization_id;
 
-  async deleteClient(clientId) {
-    const client = await Client.findByPk(clientId);
-
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = await Client.findOne({ where });
+    if (!client) throw new Error('Client not found');
 
     await client.destroy();
     return { message: 'Client deleted successfully' };
   }
 
-  async assignDossierNumber(clientId, dossierNumber, dossierData = {}, userId = null) {
+  async assignDossierNumber(clientId, dossierNumber, dossierData = {}, userId = null, organization_id = null) {
     const transaction = await sequelize.transaction();
 
     try {
-      const client = await Client.findByPk(clientId);
+      const where = { id: clientId };
+      if (organization_id) where.organization_id = organization_id;
 
-      if (!client) {
-        throw new Error('Client not found');
-      }
+      const client = await Client.findOne({ where });
+      if (!client) throw new Error('Client not found');
 
       const existingDossier = await Dossier.findOne({
-        where: { dossier_number: dossierNumber }
+        where: { dossier_number: dossierNumber, organization_id }
       });
-
-      if (existingDossier) {
-        throw new Error('Dossier number already exists');
-      }
+      if (existingDossier) throw new Error('Dossier number already exists');
 
       await Dossier.create({
         client_id: clientId,
+        organization_id,
         dossier_number: dossierNumber,
         title: dossierData.title || `Case for ${client.first_name} ${client.last_name}`,
         description: dossierData.description || null,
@@ -204,40 +192,43 @@ class ClientService {
       }, { transaction });
 
       await transaction.commit();
-      return await this.getClientById(clientId);
+      return await this.getClientById(clientId, organization_id);
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
   }
 
-  async searchClients(searchTerm, limit = 10) {
-    const clients = await Client.findAll({
-      where: {
-        [Op.or]: [
-          { first_name: { [Op.iLike]: `%${searchTerm}%` } },
-          { last_name: { [Op.iLike]: `%${searchTerm}%` } },
-          { email: { [Op.iLike]: `%${searchTerm}%` } }
-        ],
-        status: 'active'
-      },
+  async searchClients(searchTerm, limit = 10, organization_id = null) {
+    const where = {
+      status: 'active',
+      [Op.or]: [
+        { first_name: { [Op.iLike]: `%${searchTerm}%` } },
+        { last_name: { [Op.iLike]: `%${searchTerm}%` } },
+        { email: { [Op.iLike]: `%${searchTerm}%` } }
+      ]
+    };
+    if (organization_id) where.organization_id = organization_id;
+
+    return await Client.findAll({
+      where,
       attributes: ['id', 'first_name', 'last_name', 'email', 'personal_number'],
       limit: parseInt(limit),
       order: [['first_name', 'ASC']]
     });
-
-    return clients;
   }
 
-  async getClientStats() {
+  async getClientStats(organization_id = null) {
+    const orgWhere = organization_id ? { organization_id } : {};
+
     const [totalClients, activeClients, archivedClients] = await Promise.all([
-      Client.count(),
-      Client.count({ where: { status: 'active' } }),
-      Client.count({ where: { status: 'archived' } })
+      Client.count({ where: orgWhere }),
+      Client.count({ where: { ...orgWhere, status: 'active' } }),
+      Client.count({ where: { ...orgWhere, status: 'archived' } })
     ]);
 
     const activeDossiers = await Dossier.count({
-      where: { status: { [Op.in]: ['open', 'in_progress'] } }
+      where: { ...orgWhere, status: { [Op.in]: ['open', 'in_progress'] } }
     });
 
     const financialStats = await Dossier.findAll({
@@ -245,9 +236,7 @@ class ClientService {
         [sequelize.fn('SUM', sequelize.col('total_billed')), 'total_billed'],
         [sequelize.fn('SUM', sequelize.col('total_paid')), 'total_paid']
       ],
-      where: {
-        status: { [Op.in]: ['open', 'in_progress', 'pending'] }
-      },
+      where: { ...orgWhere, status: { [Op.in]: ['open', 'in_progress', 'pending'] } },
       raw: true
     });
 
@@ -264,8 +253,11 @@ class ClientService {
     };
   }
 
-  async getRecentClients(limit = 5) {
-    const clients = await Client.findAll({
+  async getRecentClients(limit = 5, organization_id = null) {
+    const where = organization_id ? { organization_id } : {};
+
+    return await Client.findAll({
+      where,
       limit: parseInt(limit),
       order: [['registration_date', 'DESC']],
       include: [
@@ -276,8 +268,6 @@ class ClientService {
         }
       ]
     });
-
-    return clients;
   }
 }
 

@@ -110,8 +110,36 @@ const checkPermission = (permission) => {
   };
 };
 
+/**
+ * Require super_admin role
+ */
+const requireSuperAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'super_admin') {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Super admin access required' }
+    });
+  }
+  next();
+};
+
+/**
+ * Require user to belong to an organization
+ */
+const requireOrg = (req, res, next) => {
+  if (!req.user || !req.user.organization_id) {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'NO_ORG', message: 'Organization membership required' }
+    });
+  }
+  next();
+};
+
 module.exports = {
   authenticate,
   authorize,
-  checkPermission
+  checkPermission,
+  requireSuperAdmin,
+  requireOrg
 };

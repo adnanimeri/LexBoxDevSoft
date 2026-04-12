@@ -8,8 +8,11 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import Layout from './components/layout/Layout';
 
 // Pages
+import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Dashboard from './pages/dashboard/Dashboard';
+import SuperAdminPanel from './pages/admin/SuperAdminPanel';
 import ClientList from './pages/clients/ClientList';
 import ClientDetails from './pages/clients/ClientDetails';
 import CreateClient from './pages/clients/CreateClient';
@@ -39,13 +42,23 @@ function App() {
             <div className="App">
               <Routes>
                 {/* Public routes */}
+                <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
-                
+                <Route path="/register" element={<Register />} />
+
                 {/* Protected routes with layout */}
-                <Route path="/" element={
+                <Route path="/dashboard" element={
                   <ProtectedRoute>
                     <Layout>
                       <Dashboard />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/super-admin" element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <Layout>
+                      <SuperAdminPanel />
                     </Layout>
                   </ProtectedRoute>
                 } />

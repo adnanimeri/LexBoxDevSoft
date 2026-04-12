@@ -3,12 +3,12 @@
 // ===================================================================
 // src/services/document.service.js
 
-const { Document, Dossier, User, TimelineNode } = require('../models');
+const { Document, Dossier, User, TimelineNode, Organization } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const fs = require('fs').promises;
 const path = require('path');
-const { encryptFile, decryptFile } = require('../utils/encryption');
+const { encryptFile, decryptFile, deriveOrgKey } = require('../utils/encryption');
 
 class DocumentService {
   /**
@@ -89,6 +89,15 @@ class DocumentService {
         throw new Error('Dossier not found');
       }
 
+      // Load org to derive per-org encryption key
+      let orgKey = null;
+      if (dossier.organization_id) {
+        const org = await Organization.findByPk(dossier.organization_id);
+        if (org && org.encryption_salt) {
+          orgKey = deriveOrgKey(org.encryption_salt);
+        }
+      }
+
       const uploadedDocs = [];
       const encryptionType = metadata.encryption || 'none';
 
@@ -96,11 +105,11 @@ class DocumentService {
         let filePath = file.path;
         let fileSize = file.size;
 
-        // Encrypt file if requested
+        // Encrypt file using per-org key
         if (encryptionType === 'aes256') {
           const encryptedPath = file.path + '.enc';
-          fileSize = await encryptFile(file.path, encryptedPath);
-          
+          fileSize = await encryptFile(file.path, encryptedPath, orgKey);
+
           // Remove original unencrypted file
           await fs.unlink(file.path);
           filePath = encryptedPath;
@@ -108,6 +117,7 @@ class DocumentService {
 
         const document = await Document.create({
           dossier_id: dossierId,
+          organization_id: dossier.organization_id || null,
           original_filename: file.originalname,
           filename: path.basename(filePath),
           file_path: filePath,
@@ -215,7 +225,9 @@ class DocumentService {
    * Get document file for download/preview (decrypts if needed)
    */
   async getDocumentFile(documentId) {
-    const document = await Document.findByPk(documentId);
+    const document = await Document.findByPk(documentId, {
+      include: [{ model: Dossier, as: 'dossier', attributes: ['organization_id'] }]
+    });
     if (!document) {
       throw new Error('Document not found');
     }
@@ -227,12 +239,22 @@ class DocumentService {
       throw new Error('File not found on server');
     }
 
+    // Derive per-org key for decryption
+    let orgKey = null;
+    const orgId = document.organization_id || document.dossier?.organization_id;
+    if (orgId) {
+      const org = await Organization.findByPk(orgId);
+      if (org && org.encryption_salt) {
+        orgKey = deriveOrgKey(org.encryption_salt);
+      }
+    }
+
     let buffer;
     const encryptionType = document.metadata?.encryption || 'none';
 
-    // Decrypt if encrypted
+    // Decrypt using per-org key
     if (encryptionType === 'aes256') {
-      buffer = await decryptFile(document.file_path);
+      buffer = await decryptFile(document.file_path, orgKey);
     } else {
       buffer = await fs.readFile(document.file_path);
     }

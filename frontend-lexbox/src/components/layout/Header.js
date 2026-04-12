@@ -3,7 +3,7 @@
 // ===================================================================
 // src/components/layout/Header.js
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Menu, Search, Bell, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clientService } from '../../services/clientService';
@@ -82,7 +82,7 @@ const Header = ({ onMenuClick }) => {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <h1 className="ml-4 text-2xl font-bold text-blue-600">LexBox</h1>
+          <Link to="/" className="ml-4 text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors">LexBox</Link>
         </div>
 
         {/* Center section - Search */}

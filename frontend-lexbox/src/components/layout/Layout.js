@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import TrialBanner from '../common/TrialBanner';
 
 /**
  * Main layout component that provides the application structure
@@ -22,7 +23,8 @@ const Layout = ({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        
+        <TrialBanner />
+
         {/* Main content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
           {children}

@@ -1,0 +1,5 @@
+Each organization has its own unique encryption salt stored in the DB. The AES key is never stored — it's re-derived at runtime:
+
+
+AES key = PBKDF2(MASTER_ENCRYPTION_KEY + org.encryption_salt)
+So GPartner and RInori encrypt with completely different keys — even if someone got the file from the wrong org folder, they couldn't decrypt it.

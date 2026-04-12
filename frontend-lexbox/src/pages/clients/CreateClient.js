@@ -57,7 +57,13 @@ const createClientMutation = useMutation({
     navigate(`/clients/${data.data.id}`);  // Changed from data.id to data.data.id
   },
   onError: (error) => {
-    showError(error.response?.data?.message || 'Failed to create client');
+    const errBody = error.response?.data;
+    const details = errBody?.error?.details;
+    if (details?.length) {
+      showError(details.map(d => d.message).join(' · '));
+    } else {
+      showError(errBody?.error?.message || errBody?.message || 'Failed to create client');
+    }
   }
 });
 

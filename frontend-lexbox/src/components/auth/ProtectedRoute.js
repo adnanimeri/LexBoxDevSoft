@@ -21,9 +21,14 @@ const ProtectedRoute = ({ children, requiredRole = null, requiredPermission = nu
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to landing page if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Super admin is locked to /super-admin — redirect away from all org routes
+  if (user?.role === 'super_admin' && !location.pathname.startsWith('/super-admin')) {
+    return <Navigate to="/super-admin" replace />;
   }
 
   // Check role-based access

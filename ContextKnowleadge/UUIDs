@@ -1,0 +1,10 @@
+UUIDs (Universally Unique Identifiers), not cryptographic public keys. Here's the distinction:
+
+
+0c67ed5d-81ac-4d6d-9991-be4956c970c3  ← UUID (just a unique ID, not a key)
+UUID — randomly generated 128-bit identifier. Used to:
+
+Name the org's storage folder
+Link records across tables (clients, dossiers, documents all have organization_id pointing to this)
+Identify the org in API requests
+

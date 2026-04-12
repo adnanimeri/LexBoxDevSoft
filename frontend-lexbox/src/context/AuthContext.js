@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }) => {
       return { user, token };
       
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.error?.message || error.response?.data?.message || 'Login failed';
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
       throw new Error(message);
     }

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Organization = require('../models/Organization');
 const { generateTokenPair } = require('../utils/jwt.util');
 
 /**
@@ -79,6 +80,22 @@ const login = async (req, res, next) => {
           message: 'Invalid email or password'
         }
       });
+    }
+
+    // Check if the user's organization is suspended
+    if (user.organization_id) {
+      const org = await Organization.findByPk(user.organization_id, {
+        attributes: ['status']
+      });
+      if (org && org.status === 'suspended') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'ORG_SUSPENDED',
+            message: 'Your account has been suspended. Please contact support to reactivate it.'
+          }
+        });
+      }
     }
 
     // Update last login

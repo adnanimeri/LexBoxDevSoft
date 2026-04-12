@@ -28,8 +28,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Only redirect to login if we actually had a token (session expired)
+      // Don't redirect for public routes that return 401 when no token is present
+      const hadToken = !!localStorage.getItem('lexbox_token');
       localStorage.removeItem('lexbox_token');
-      window.location.href = '/login';
+      localStorage.removeItem('lexbox_user');
+      if (hadToken) {
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }

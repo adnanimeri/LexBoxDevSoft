@@ -9,6 +9,9 @@ const dossierRoutes = require('./routes/dossier.routes');
 const billingRoutes = require('./routes/billing.routes');
 const documentRoutes = require('./routes/document.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const publicRoutes = require('./routes/public.routes');
+const superadminRoutes = require('./routes/superadmin.routes');
+const orgRoutes = require('./routes/org.routes');
 
 
 
@@ -49,13 +52,17 @@ app.get('/api/health', (req, res) => {
 
 // API Routes (will be added in subsequent phases)
 const authRoutes = require('./routes/auth.routes');
+// Public routes must come before billingRoutes (/api catch-all with authenticate)
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/super', superadminRoutes);
+app.use('/api/org', orgRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/timeline', timelineRoutes);
 app.use('/api/dossiers', dossierRoutes);
-app.use('/api', billingRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api', billingRoutes);
 
 // 404 Handler
 app.use((req, res) => {
