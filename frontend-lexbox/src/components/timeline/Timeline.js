@@ -19,6 +19,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import TimelineNodeModal from './TimelineNodeModal';
+import ConfirmModal from '../common/ConfirmModal';
 
 /**
  * Timeline component for displaying and managing dossier activities
@@ -28,6 +29,7 @@ const Timeline = ({ dossierId }) => {
   const [editingNode, setEditingNode] = useState(null);
   const [filters, setFilters] = useState({});
   const [showFilters, setShowFilters] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -63,9 +65,13 @@ const Timeline = ({ dossierId }) => {
   };
 
   const handleDeleteNode = (nodeId) => {
-    if (window.confirm('Are you sure you want to delete this activity?')) {
-      deleteMutation.mutate(nodeId);
-    }
+    setConfirmModal({
+      title: 'Delete Activity',
+      message: 'Are you sure you want to delete this activity? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => deleteMutation.mutate(nodeId),
+    });
   };
 
   const handleModalClose = () => {
@@ -333,6 +339,16 @@ const Timeline = ({ dossierId }) => {
           onSuccess={handleModalSuccess}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmLabel={confirmModal?.confirmLabel}
+        danger={confirmModal?.danger}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 };

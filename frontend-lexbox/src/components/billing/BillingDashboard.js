@@ -2,10 +2,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  DollarSign, 
-  FileText, 
-  Plus, 
-  Send, 
+  FileText,
+  Plus,
   XCircle,
   CreditCard,
   Clock,
@@ -20,12 +18,14 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import CreateInvoiceModal from './CreateInvoiceModal';
 import InvoiceDetails from './InvoiceDetails';
 import RecordPaymentModal from './RecordPaymentModal';
+import ConfirmModal from '../common/ConfirmModal';
 
 const BillingDashboard = ({ dossierId }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentInvoiceId, setPaymentInvoiceId] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
@@ -42,19 +42,6 @@ const BillingDashboard = ({ dossierId }) => {
     queryKey: ['invoices', dossierId],
     queryFn: () => billingService.getInvoices(dossierId),
     enabled: !!dossierId
-  });
-
-  // Send invoice mutation (mark as sent)
-  const sendInvoiceMutation = useMutation({
-    mutationFn: (invoiceId) => billingService.sendInvoice(invoiceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['invoices', dossierId]);
-      queryClient.invalidateQueries(['billing-summary', dossierId]);
-      showSuccess('Invoice marked as sent');
-    },
-    onError: (error) => {
-      showError(error.response?.data?.message || 'Failed to send invoice');
-    }
   });
 
   // Email invoice mutation
@@ -108,9 +95,13 @@ const BillingDashboard = ({ dossierId }) => {
 
   // Email invoice
   const handleEmailInvoice = (invoice) => {
-    if (window.confirm(`Send invoice ${invoice.invoice_number} via email to the client?`)) {
-      emailInvoiceMutation.mutate(invoice.id);
-    }
+    setConfirmModal({
+      title: 'Send Invoice by Email',
+      message: `Send invoice ${invoice.invoice_number} via email to the client?`,
+      confirmLabel: 'Send',
+      danger: false,
+      onConfirm: () => emailInvoiceMutation.mutate(invoice.id),
+    });
   };
 
   const summary = summaryData?.data || {};
@@ -275,26 +266,15 @@ const BillingDashboard = ({ dossierId }) => {
                         <Download className="h-4 w-4" />
                       </button>
 
-                      {/* Email Invoice - available for non-cancelled invoices */}
-                      {invoice.status !== 'cancelled' && (
+                      {/* Email to send (draft only) — becomes Record Payment once sent */}
+                      {invoice.status === 'draft' && (
                         <button
                           onClick={() => handleEmailInvoice(invoice)}
                           disabled={emailInvoiceMutation.isPending}
                           className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
-                          title="Email to Client"
+                          title="Send Invoice by Email"
                         >
                           <Mail className="h-4 w-4" />
-                        </button>
-                      )}
-
-                      {/* Mark as Sent - only for draft */}
-                      {invoice.status === 'draft' && (
-                        <button
-                          onClick={() => sendInvoiceMutation.mutate(invoice.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Mark as Sent"
-                        >
-                          <Send className="h-4 w-4" />
                         </button>
                       )}
 
@@ -312,7 +292,13 @@ const BillingDashboard = ({ dossierId }) => {
                       {/* Cancel - only for draft/sent */}
                       {['draft', 'sent'].includes(invoice.status) && (
                         <button
-                          onClick={() => cancelInvoiceMutation.mutate(invoice.id)}
+                          onClick={() => setConfirmModal({
+                            title: 'Cancel Invoice',
+                            message: `Cancel invoice ${invoice.invoice_number}? This action cannot be undone.`,
+                            confirmLabel: 'Cancel Invoice',
+                            danger: true,
+                            onConfirm: () => cancelInvoiceMutation.mutate(invoice.id),
+                          })}
                           className="text-red-600 hover:text-red-800"
                           title="Cancel Invoice"
                         >
@@ -357,6 +343,16 @@ const BillingDashboard = ({ dossierId }) => {
           }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmLabel={confirmModal?.confirmLabel}
+        danger={confirmModal?.danger}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 };

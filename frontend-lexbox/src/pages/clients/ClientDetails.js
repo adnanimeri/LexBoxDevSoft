@@ -297,7 +297,7 @@ const ClientDetails = () => {
                   <div className="bg-orange-50 p-4 rounded-lg">
                     <p className="text-sm text-orange-600">Outstanding</p>
                     <p className="text-2xl font-bold text-orange-900">
-                      €{(parseFloat(primaryDossier.total_billed || 0) - parseFloat(primaryDossier.total_paid || 0)).toFixed(2)}
+                      €{Math.max(0, parseFloat(primaryDossier.total_billed || 0) - parseFloat(primaryDossier.total_paid || 0)).toFixed(2)}
                     </p>
                   </div>
                 </div>

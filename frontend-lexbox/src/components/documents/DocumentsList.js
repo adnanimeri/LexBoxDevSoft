@@ -25,6 +25,7 @@ import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import DocumentUploadModal from './DocumentUploadModal';
+import ConfirmModal from '../common/ConfirmModal';
 
 /**
  * Documents list component with upload, preview, and management capabilities
@@ -36,6 +37,7 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -121,9 +123,13 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
    * Handle document deletion
    */
   const handleDelete = (documentId) => {
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      deleteDocumentMutation.mutate(documentId);
-    }
+    setConfirmModal({
+      title: 'Delete Document',
+      message: 'Are you sure you want to delete this document? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => deleteDocumentMutation.mutate(documentId),
+    });
   };
 
   // Filter documents based on search and category
@@ -514,6 +520,16 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
           document={selectedDocument}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmLabel={confirmModal?.confirmLabel}
+        danger={confirmModal?.danger}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 };

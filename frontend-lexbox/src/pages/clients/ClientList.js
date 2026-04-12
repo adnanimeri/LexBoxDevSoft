@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Pagination from '../../components/common/Pagination';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 /**
  * Client list page with search, filtering, and pagination
@@ -22,6 +23,7 @@ const ClientList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [confirmModal, setConfirmModal] = useState(null);
   
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -52,17 +54,23 @@ const ClientList = () => {
   /**
    * Handle client archiving
    */
-  const handleArchiveClient = async (e, clientId) => {
-    e.stopPropagation(); // Prevent row click
-    if (!window.confirm('Are you sure you want to archive this client?')) return;
-    
-    try {
-      await clientService.archiveClient(clientId);
-      showSuccess('Client archived successfully');
-      refetch();
-    } catch (error) {
-      showError('Failed to archive client');
-    }
+  const handleArchiveClient = (e, clientId) => {
+    e.stopPropagation();
+    setConfirmModal({
+      title: 'Archive Client',
+      message: 'Are you sure you want to archive this client? This action can be reversed later.',
+      confirmLabel: 'Archive',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await clientService.archiveClient(clientId);
+          showSuccess('Client archived successfully');
+          refetch();
+        } catch (error) {
+          showError('Failed to archive client');
+        }
+      }
+    });
   };
 
   /**
@@ -365,6 +373,16 @@ const ClientList = () => {
           onPageChange={setCurrentPage}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmLabel={confirmModal?.confirmLabel}
+        danger={confirmModal?.danger}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
     </div>
   );
 };
