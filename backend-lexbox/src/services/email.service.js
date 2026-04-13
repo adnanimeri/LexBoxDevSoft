@@ -14,57 +14,61 @@ class EmailService {
   }
 
   /**
-   * Initialize or refresh email configuration from settings
+   * Build transporter from environment variables (platform-level SMTP).
+   * Called once on first use; transporter is reused across sends.
    */
-  async refreshConfig() {
-    try {
-      const settingsService = require('./settings.service');
+  _buildTransporter() {
+    const host     = process.env.SMTP_HOST;
+    const portNum  = parseInt(process.env.SMTP_PORT || '587', 10);
+    const isSecure = process.env.SMTP_SECURE === 'true';
+    const user     = process.env.SMTP_USER;
+    const pass     = process.env.SMTP_PASS;
 
-      const host = await settingsService.get('smtp_host', '');
-      const port = await settingsService.get('smtp_port', 587);
-      const secure = await settingsService.get('smtp_secure', false);
-      const user = await settingsService.get('smtp_user', '');
-      const pass = await settingsService.get('smtp_pass', '');
+    this.fromEmail   = process.env.SMTP_FROM || user;
+    this.companyName = process.env.COMPANY_NAME || 'LexBox Legal Services';
 
-      this.fromEmail = await settingsService.get('smtp_from', 'noreply@lexbox.com');
-      this.companyName = await settingsService.get('company_name', 'LexBox Legal Services');
+    console.log(`[EmailService] SMTP: host=${host} port=${portNum} secure=${isSecure} user=${user}`);
 
-      console.log(`[EmailService] Config: host=${host}, port=${port}, user=${user}, from=${this.fromEmail}`);
+    if (!host || !user || !pass) {
+      throw new Error(`SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS in .env`);
+    }
 
-      if (!host || !user || !pass) {
-        throw new Error(`SMTP not fully configured — host="${host}" user="${user}" pass=${pass ? 'set' : 'missing'}`);
-      }
+    this.transporter = nodemailer.createTransport({
+      host,
+      port: portNum,
+      secure: isSecure,       // true → direct TLS (port 465); false → STARTTLS (port 587)
+      requireTLS: !isSecure,  // enforce STARTTLS upgrade on port 587
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false }
+    });
 
-      this.transporter = nodemailer.createTransport({
-        host,
-        port: parseInt(port),
-        secure: secure === true || secure === 'true',
-        auth: { user, pass }
-      });
+    this.initialized = true;
+  }
 
-      this.initialized = true;
-      return true;
-    } catch (error) {
-      console.error('[EmailService] refreshConfig error:', error.message);
-      this.initialized = false;
-      throw error;
+  /**
+   * Ensure transporter is ready
+   */
+  ensureInitialized() {
+    if (!this.initialized) {
+      this._buildTransporter();
     }
   }
 
   /**
-   * Ensure service is initialized
+   * @deprecated kept for backward compat with settings controller test-email
    */
-  async ensureInitialized() {
-    if (!this.initialized) {
-      await this.refreshConfig();
-    }
+  async refreshConfig() {
+    this._buildTransporter();
   }
 
   /**
    * Send invoice email to client
    */
   async sendInvoiceEmail(invoice, client, pdfBuffer) {
-    await this.ensureInitialized();
+    this.ensureInitialized();
 
     if (!client.email) {
       throw new Error('Client does not have an email address');
@@ -155,7 +159,7 @@ class EmailService {
    * Send welcome email with credentials to newly approved org admin
    */
   async sendWelcomeEmail({ toEmail, firstName, lastName, orgName, planName, tempPassword, loginUrl }) {
-    await this.ensureInitialized();
+    this.ensureInitialized();
 
     const mailOptions = {
       from: `"${this.companyName}" <${this.fromEmail}>`,
@@ -195,7 +199,7 @@ class EmailService {
                 </div>
                 <div class="cred-row" style="border-bottom:none;">
                   <span class="label">Temporary password</span>
-                  <span class="value" style="font-family:monospace;letter-spacing:1px;">${tempPassword}</span>
+                  <span class="value" style="font-family:monospace;letter-spacing:1px;">Password: ${tempPassword}</span>
                 </div>
               </div>
 
@@ -223,7 +227,7 @@ class EmailService {
    * Send test email
    */
   async sendTestEmail(toEmail) {
-    await this.refreshConfig(); // Always refresh for test
+    this.refreshConfig(); // Always refresh for test
 
     const mailOptions = {
       from: `"${this.companyName}" <${this.fromEmail}>`,
@@ -251,7 +255,7 @@ class EmailService {
    * Send subscription invoice PDF to org contact email
    */
   async sendSubscriptionInvoiceEmail(inv, org, pdfBuffer) {
-    await this.ensureInitialized();
+    this.ensureInitialized();
 
     const period = `${new Date(inv.period_start).toLocaleDateString()} – ${new Date(inv.period_end).toLocaleDateString()}`;
     const total  = parseFloat(inv.total_amount).toFixed(2);
@@ -315,7 +319,7 @@ class EmailService {
    * Verify SMTP connection
    */
   async verifyConnection() {
-    await this.ensureInitialized();
+    this.ensureInitialized();
     
     try {
       await this.transporter.verify();

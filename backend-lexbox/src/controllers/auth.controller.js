@@ -150,9 +150,52 @@ const logout = async (req, res, next) => {
   }
 };
 
+/**
+ * Change password for the currently logged-in user
+ * POST /api/auth/change-password
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (new_password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters'
+      });
+    }
+
+    // Re-fetch user with password hash (toJSON strips it)
+    const user = await User.findByPk(req.user.id);
+
+    const isValid = await user.validatePassword(current_password);
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    const password_hash = await User.hashPassword(new_password);
+    await user.update({ password_hash });
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getCurrentUser,
-  logout
+  logout,
+  changePassword
 };

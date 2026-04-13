@@ -122,12 +122,31 @@ export const AuthProvider = ({ children }) => {
    */
   const hasPermission = (permission) => {
     if (!state.user) return false;
-    
+    const role = state.user.role;
+
     // Admin has all permissions
-    if (state.user.role === 'admin') return true;
-    
-    // Check specific permission
-    return state.user.permissions?.includes(permission);
+    if (role === 'admin') return true;
+
+    // Role-based permission map (matches Summary Recommendation)
+    const ROLE_PERMISSIONS = {
+      lawyer: [
+        'clients:read', 'clients:write',
+        'dossiers:read', 'dossiers:write',
+        'documents:read', 'documents:write',
+        'timeline:read', 'timeline:write',
+        'billing:read', 'billing:write',
+        'calendar:read', 'calendar:write',
+      ],
+      secretary: [
+        'clients:read',
+        'dossiers:read',
+        'documents:read', 'documents:upload',
+        'timeline:read', 'timeline:write',
+        'calendar:read', 'calendar:write',
+      ],
+    };
+
+    return (ROLE_PERMISSIONS[role] || []).includes(permission);
   };
 
   const value = {

@@ -543,6 +543,91 @@ class BillingService {
   }
 
   /**
+   * Get all invoices across all clients for an organization (global billing view)
+   */
+  async getGlobalInvoices(orgId, filters = {}) {
+    await this.updateOverdueInvoices();
+    const { status, search, startDate, endDate, page = 1, limit = 20 } = filters;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const invoiceWhere = {};
+    if (status && status !== 'all') invoiceWhere.status = status;
+    if (startDate || endDate) {
+      invoiceWhere.issue_date = {};
+      if (startDate) invoiceWhere.issue_date[Op.gte] = startDate;
+      if (endDate) invoiceWhere.issue_date[Op.lte] = endDate;
+    }
+    if (search) {
+      invoiceWhere.invoice_number = { [Op.like]: `%${search}%` };
+    }
+
+    const { count, rows } = await Invoice.findAndCountAll({
+      where: invoiceWhere,
+      include: [{
+        model: Dossier,
+        as: 'dossier',
+        required: true,
+        where: { organization_id: orgId },
+        attributes: ['id', 'dossier_number'],
+        include: [{
+          model: Client,
+          as: 'client',
+          attributes: ['id', 'first_name', 'last_name', 'email']
+        }]
+      }],
+      order: [['issue_date', 'DESC'], ['id', 'DESC']],
+      limit: parseInt(limit),
+      offset,
+      distinct: true
+    });
+
+    return {
+      invoices: rows,
+      total: count,
+      pages: Math.ceil(count / parseInt(limit)),
+      page: parseInt(page)
+    };
+  }
+
+  /**
+   * Global billing summary statistics for an organization
+   */
+  async getGlobalSummary(orgId) {
+    await this.updateOverdueInvoices();
+    const now = new Date();
+
+    const invoices = await Invoice.findAll({
+      include: [{
+        model: Dossier,
+        as: 'dossier',
+        required: true,
+        where: { organization_id: orgId },
+        attributes: []
+      }],
+      where: { status: { [Op.notIn]: ['cancelled'] } },
+      attributes: ['total_amount', 'amount_paid', 'status', 'due_date']
+    });
+
+    let totalInvoiced = 0, totalPaid = 0, totalOverdue = 0;
+
+    invoices.forEach(inv => {
+      totalInvoiced += parseFloat(inv.total_amount);
+      totalPaid += parseFloat(inv.amount_paid);
+      const balance = parseFloat(inv.total_amount) - parseFloat(inv.amount_paid);
+      if (balance > 0 && new Date(inv.due_date) < now && !['paid', 'cancelled'].includes(inv.status)) {
+        totalOverdue += balance;
+      }
+    });
+
+    return {
+      totalInvoiced,
+      totalPaid,
+      totalOutstanding: Math.max(0, totalInvoiced - totalPaid),
+      totalOverdue
+    };
+  }
+
+  /**
    * Check for overdue invoices and update status
    */
   async updateOverdueInvoices() {

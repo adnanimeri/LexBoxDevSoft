@@ -25,5 +25,6 @@ router.post('/register', authenticate, authorize('admin'), registerValidation, v
 router.post('/login', loginValidation, validate, authController.login);
 router.get('/me', authenticate, authController.getCurrentUser);
 router.post('/logout', authenticate, authController.logout);
+router.post('/change-password', authenticate, authController.changePassword);
 
 module.exports = router;

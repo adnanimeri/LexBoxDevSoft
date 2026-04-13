@@ -34,16 +34,15 @@ const Client = sequelize.define('Client', {
     }
   },
   personal_number: {
-  type: DataTypes.STRING(50),
-  allowNull: true,
-  unique: true,
-  validate: {
-    len: [0, 50],
-    isNumeric: {
-      msg: 'Personal number must contain only numbers'
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    validate: {
+      len: [0, 50],
+      isNumeric: {
+        msg: 'Personal number must contain only numbers'
+      }
     }
-  }
-},
+  },
   email: {
     type: DataTypes.STRING(255),
     allowNull: true,

@@ -5,27 +5,33 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Building2, 
-  Mail, 
-  FileText, 
-  DollarSign, 
-  Save, 
-  TestTube,
+import {
+  Building2,
+  FileText,
+  DollarSign,
+  Save,
   Eye,
-  EyeOff
+  EyeOff,
+  Lock
 } from 'lucide-react';
 import { settingsService } from '../../services/settingsService';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import apiClient from '../../services/apiService';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('company');
   const [formData, setFormData] = useState({});
   const [showPasswords, setShowPasswords] = useState({});
-  const [testEmail, setTestEmail] = useState('');
+
+  // Password change state
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [showPw, setShowPw] = useState({ current: false, new: false, confirm: false });
+  const [pwLoading, setPwLoading] = useState(false);
 
   const { showSuccess, showError } = useNotification();
+  const { logout } = useAuth();
   const queryClient = useQueryClient();
 
   // Fetch all settings
@@ -62,17 +68,6 @@ const SettingsPage = () => {
     }
   });
 
-  // Test email mutation
-  const testEmailMutation = useMutation({
-    mutationFn: (email) => settingsService.testEmail(email),
-    onSuccess: (data) => {
-      showSuccess(data.message || 'Test email sent successfully');
-    },
-    onError: (error) => {
-      showError(error.response?.data?.message || 'Failed to send test email');
-    }
-  });
-
   const handleInputChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
@@ -81,23 +76,40 @@ const SettingsPage = () => {
     updateMutation.mutate(formData);
   };
 
-  const handleTestEmail = () => {
-    if (!testEmail) {
-      showError('Please enter an email address');
-      return;
-    }
-    testEmailMutation.mutate(testEmail);
-  };
-
   const togglePasswordVisibility = (key) => {
     setShowPasswords(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwForm.new_password !== pwForm.confirm_password) {
+      showError('New passwords do not match');
+      return;
+    }
+    if (pwForm.new_password.length < 8) {
+      showError('New password must be at least 8 characters');
+      return;
+    }
+    setPwLoading(true);
+    try {
+      await apiClient.post('/auth/change-password', {
+        current_password: pwForm.current_password,
+        new_password: pwForm.new_password
+      });
+      showSuccess('Password changed successfully. Signing you out…');
+      setTimeout(() => logout(), 2000);
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
   const tabs = [
     { id: 'company', label: 'Company', icon: Building2 },
-    { id: 'email', label: 'Email / SMTP', icon: Mail },
     { id: 'invoice', label: 'Invoice', icon: FileText },
-    { id: 'billing', label: 'Billing', icon: DollarSign }
+    { id: 'billing', label: 'Billing', icon: DollarSign },
+    { id: 'security', label: 'Security', icon: Lock }
   ];
 
   const settings = settingsData?.data || {};
@@ -110,10 +122,20 @@ const SettingsPage = () => {
     );
   }
 
+  const FIELD_PLACEHOLDERS = {
+    company_name:    'Your law firm name',
+    company_address: 'Your company address',
+    company_phone:   'e.g. +352 123 456 789',
+    company_email:   'contact@yourfirm.com',
+    company_website: 'https://yourfirm.com',
+    company_tax_id:  'VAT / Tax ID number'
+  };
+
   const renderField = (setting) => {
     const isSensitive = setting.is_sensitive;
     const isPassword = isSensitive || setting.key.includes('pass');
     const showPassword = showPasswords[setting.key];
+    const placeholder = FIELD_PLACEHOLDERS[setting.key] || setting.label;
 
     return (
       <div key={setting.key} className="mb-4">
@@ -123,7 +145,7 @@ const SettingsPage = () => {
         {setting.description && (
           <p className="text-xs text-gray-500 mb-1">{setting.description}</p>
         )}
-        
+
         {setting.type === 'boolean' ? (
           <label className="relative inline-flex items-center cursor-pointer">
             <input
@@ -143,7 +165,7 @@ const SettingsPage = () => {
               type={isPassword && !showPassword ? 'password' : 'text'}
               value={formData[setting.key] ?? ''}
               onChange={(e) => handleInputChange(setting.key, e.target.value)}
-              placeholder={setting.label}
+              placeholder={placeholder}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
             />
             {isPassword && (
@@ -220,46 +242,6 @@ const SettingsPage = () => {
             </div>
           )}
 
-          {/* Email Settings */}
-          {activeTab === 'email' && (
-            <div className="max-w-2xl">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Email Configuration</h3>
-              <p className="text-sm text-gray-500 mb-6">
-                Configure SMTP settings to send emails (invoices, notifications).
-              </p>
-              {(settings.email || []).map(renderField)}
-
-              {/* Test Email Section */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <h4 className="text-md font-medium text-gray-900 mb-2">Test Email Configuration</h4>
-                <p className="text-sm text-gray-500 mb-4">
-                  Save your settings first, then send a test email to verify your SMTP settings are working correctly.
-                </p>
-                <div className="flex space-x-3">
-                  <input
-                    type="email"
-                    value={testEmail}
-                    onChange={(e) => setTestEmail(e.target.value)}
-                    placeholder="Enter email address"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleTestEmail}
-                    disabled={testEmailMutation.isPending}
-                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {testEmailMutation.isPending ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <TestTube className="h-4 w-4 mr-2" />
-                    )}
-                    Send Test
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Invoice Settings */}
           {activeTab === 'invoice' && (
             <div className="max-w-2xl">
@@ -279,6 +261,87 @@ const SettingsPage = () => {
                 Default values for billing and time tracking.
               </p>
               {(settings.billing || []).map(renderField)}
+            </div>
+          )}
+
+          {/* Security — Change Password */}
+          {activeTab === 'security' && (
+            <div className="max-w-md">
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Change Password</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Update your login password. You will need to enter your current password to confirm.
+              </p>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {/* Current password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPw.current ? 'text' : 'password'}
+                      value={pwForm.current_password}
+                      onChange={(e) => setPwForm(p => ({ ...p, current_password: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                      placeholder="Enter current password"
+                    />
+                    <button type="button" onClick={() => setShowPw(p => ({ ...p, current: !p.current }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPw.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPw.new ? 'text' : 'password'}
+                      value={pwForm.new_password}
+                      onChange={(e) => setPwForm(p => ({ ...p, new_password: e.target.value }))}
+                      required
+                      minLength={8}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                      placeholder="Minimum 8 characters"
+                    />
+                    <button type="button" onClick={() => setShowPw(p => ({ ...p, new: !p.new }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPw.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPw.confirm ? 'text' : 'password'}
+                      value={pwForm.confirm_password}
+                      onChange={(e) => setPwForm(p => ({ ...p, confirm_password: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                      placeholder="Repeat new password"
+                    />
+                    <button type="button" onClick={() => setShowPw(p => ({ ...p, confirm: !p.confirm }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPw.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {pwForm.confirm_password && pwForm.new_password !== pwForm.confirm_password && (
+                    <p className="mt-1 text-xs text-red-500">Passwords do not match</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={pwLoading || (pwForm.confirm_password && pwForm.new_password !== pwForm.confirm_password)}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {pwLoading ? <LoadingSpinner size="sm" className="mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                  Update Password
+                </button>
+              </form>
             </div>
           )}
         </div>

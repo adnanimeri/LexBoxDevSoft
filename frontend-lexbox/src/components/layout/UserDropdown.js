@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -9,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 const UserDropdown = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -53,7 +55,10 @@ const UserDropdown = ({ user }) => {
             <p className="text-xs text-gray-500">{user?.email}</p>
           </div>
           
-          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+          <button
+            onClick={() => { navigate('/settings'); setIsOpen(false); }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+          >
             <Settings className="mr-3 h-4 w-4" />
             Settings
           </button>

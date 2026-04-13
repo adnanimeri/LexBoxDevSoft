@@ -12,6 +12,8 @@ const settingsRoutes = require('./routes/settings.routes');
 const publicRoutes = require('./routes/public.routes');
 const superadminRoutes = require('./routes/superadmin.routes');
 const orgRoutes = require('./routes/org.routes');
+const calendarRoutes = require('./routes/calendar.routes');
+const userRoutes = require('./routes/user.routes');
 
 
 
@@ -62,6 +64,8 @@ app.use('/api/timeline', timelineRoutes);
 app.use('/api/dossiers', dossierRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api', billingRoutes);
 
 // 404 Handler

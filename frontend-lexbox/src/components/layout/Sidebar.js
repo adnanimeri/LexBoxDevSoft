@@ -7,7 +7,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
   Users,
-  FileText,
+  UserCog,
   Calendar,
   Settings,
   CreditCard,
@@ -26,12 +26,12 @@ const Sidebar = ({ isOpen, onClose }) => {
   const navigationItems = isSuperAdmin ? [
     { name: 'Super Admin', href: '/super-admin', icon: Shield, permission: null },
   ] : [
-    { name: 'Dashboard', href: '/dashboard', icon: Home, permission: null },
-    { name: 'Clients', href: '/clients', icon: Users, permission: 'clients:read' },
-    { name: 'Templates', href: '/templates', icon: FileText, permission: 'documents:read' },
-    { name: 'Calendar', href: '/calendar', icon: Calendar, permission: 'calendar:read' },
-    { name: 'Billing', href: '/billing', icon: CreditCard, permission: 'billing:read' },
-    { name: 'Settings', href: '/settings', icon: Settings, permission: 'admin' },
+    { name: 'Dashboard',    href: '/dashboard', icon: Home,     permission: null },
+    { name: 'Clients',      href: '/clients',   icon: Users,    permission: 'clients:read' },
+    { name: 'Calendar',     href: '/calendar',  icon: Calendar, permission: 'calendar:read' },
+    { name: 'Billing',      href: '/billing',   icon: CreditCard, permission: 'billing:read' },
+    { name: 'Users',        href: '/users',     icon: UserCog,  permission: 'admin' },
+    { name: 'Settings',     href: '/settings',  icon: Settings, permission: 'admin' },
   ];
 
   const allowedItems = navigationItems.filter(item =>

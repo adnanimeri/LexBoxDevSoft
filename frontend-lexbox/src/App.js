@@ -19,6 +19,9 @@ import CreateClient from './pages/clients/CreateClient';
 import EditClient from './pages/clients/EditClient';
 import AdminPanel from './pages/admin/AdminPanel';
 import SettingsPage from './pages/settings/SettingsPage';
+import UserManagementPage from './pages/users/UserManagementPage';
+import GlobalBilling from './pages/billing/GlobalBilling';
+import CalendarPage from './pages/calendar/CalendarPage';
 
 // Styles
 import './styles/globals.css';
@@ -95,6 +98,22 @@ function App() {
                   </ProtectedRoute>
                 } />
                 
+                <Route path="/billing" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <GlobalBilling />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/calendar" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <CalendarPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
                 <Route path="/admin" element={
                   <ProtectedRoute requiredRole="admin">
                     <Layout>
@@ -107,6 +126,14 @@ function App() {
                   <ProtectedRoute requiredRole="admin">
                     <Layout>
                       <SettingsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/users" element={
+                  <ProtectedRoute requiredRole="admin">
+                    <Layout>
+                      <UserManagementPage />
                     </Layout>
                   </ProtectedRoute>
                 } />
