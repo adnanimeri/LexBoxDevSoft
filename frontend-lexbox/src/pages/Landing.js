@@ -34,6 +34,8 @@ const NAV_LINKS = [
   { label: 'Features',  id: 'features'  },
   { label: 'Security',  id: 'security'  },
   { label: 'Pricing',   id: 'pricing'   },
+  { label: 'FAQ',       id: 'faq'       },
+  { label: 'Contact',   id: 'contact'   },
 ];
 
 const Navbar = ({ onRegister, onLogin }) => {
@@ -535,6 +537,147 @@ const PricingSection = ({ onRegister }) => {
   );
 };
 
+// ── FAQ ───────────────────────────────────────────────────────────────
+
+const FAQ_ITEMS = [
+  {
+    q: 'Is my data secure?',
+    a: 'Yes. Every document is encrypted at rest with AES-256 using a unique key per organisation. Data in transit is protected by TLS 1.3. Your encryption key is never stored alongside your data.'
+  },
+  {
+    q: 'Can I try LexBox before paying?',
+    a: 'Absolutely. Every new firm gets a 14-day free trial with full access to all features. No credit card is required to start.'
+  },
+  {
+    q: 'How many users can I add?',
+    a: 'It depends on your plan. The Starter plan supports up to 3 users, Professional up to 10, and Enterprise is unlimited. You can always upgrade as your team grows.'
+  },
+  {
+    q: 'What roles are available?',
+    a: 'LexBox supports three roles: Admin (full access), Lawyer (clients, dossiers, billing, documents), and Secretary (configurable by the admin — can optionally create clients and access client-level billing).'
+  },
+  {
+    q: 'Can I cancel at any time?',
+    a: 'Yes. There are no long-term commitments. You can cancel your subscription at any time and your data remains accessible until the end of the billing period.'
+  },
+  {
+    q: 'Do you offer support?',
+    a: 'All plans include email support. Professional and Enterprise plans receive priority support with faster response times and dedicated onboarding assistance.'
+  },
+];
+
+const FAQSection = () => {
+  const [open, setOpen] = useState(null);
+  return (
+    <section id="faq" className="py-28 bg-white">
+      <div className="max-w-3xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 rounded-full text-blue-600 text-sm font-semibold mb-6">
+            Frequently asked questions
+          </div>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Got questions?</h2>
+          <p className="text-lg text-gray-500">Everything you need to know about LexBox.</p>
+        </div>
+        <div className="space-y-3">
+          {FAQ_ITEMS.map((item, i) => (
+            <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <span className="font-semibold text-gray-900 text-sm md:text-base">{item.q}</span>
+                <span className={`ml-4 flex-shrink-0 h-5 w-5 rounded-full border-2 border-blue-500 flex items-center justify-center transition-transform ${open === i ? 'rotate-45' : ''}`}>
+                  <span className="text-blue-500 text-lg leading-none font-bold">+</span>
+                </span>
+              </button>
+              {open === i && (
+                <div className="px-6 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ── Contact ───────────────────────────────────────────────────────────
+
+const ContactSection = () => {
+  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [sent, setSent] = useState(false);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // In production this would call an API endpoint; for now we show a confirmation
+    setSent(true);
+  };
+
+  return (
+    <section id="contact" className="py-28 bg-gray-50">
+      <div className="max-w-2xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 rounded-full text-green-600 text-sm font-semibold mb-6">
+            Get in touch
+          </div>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Contact us</h2>
+          <p className="text-lg text-gray-500">Have a question or need a demo? We'll get back to you within one business day.</p>
+        </div>
+
+        {sent ? (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-10 text-center">
+            <div className="h-14 w-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-7 w-7 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Message received!</h3>
+            <p className="text-gray-500 text-sm">Thank you for reaching out. We'll reply to <strong>{form.email}</strong> shortly.</p>
+            <button onClick={() => { setSent(false); setForm({ name: '', email: '', subject: '', message: '' }); }}
+              className="mt-6 px-5 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+              Send another message
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full name *</label>
+                <input value={form.name} onChange={e => set('name', e.target.value)} required
+                  placeholder="Jane Smith"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email *</label>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required
+                  placeholder="jane@lawfirm.com"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject *</label>
+              <input value={form.subject} onChange={e => set('subject', e.target.value)} required
+                placeholder="e.g. Demo request, pricing question…"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Message *</label>
+              <textarea value={form.message} onChange={e => set('message', e.target.value)} required rows={5}
+                placeholder="Tell us how we can help…"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+            </div>
+            <button type="submit"
+              className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+              Send Message <ArrowRight className="h-4 w-4" />
+            </button>
+          </form>
+        )}
+      </div>
+    </section>
+  );
+};
+
 // ── CTA Banner ────────────────────────────────────────────────────────
 
 const CTASection = ({ onRegister }) => (
@@ -612,6 +755,8 @@ const Landing = () => {
       <FeaturesSection />
       <SecuritySection />
       <PricingSection  onRegister={goRegister} />
+      <FAQSection />
+      <ContactSection />
       <CTASection      onRegister={goRegister} />
       <Footer    onLogin={goLogin} onRegister={goRegister} />
     </div>
