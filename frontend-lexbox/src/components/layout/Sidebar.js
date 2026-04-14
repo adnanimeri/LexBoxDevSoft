@@ -29,14 +29,15 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Dashboard',    href: '/dashboard', icon: Home,     permission: null },
     { name: 'Clients',      href: '/clients',   icon: Users,    permission: 'clients:read' },
     { name: 'Calendar',     href: '/calendar',  icon: Calendar, permission: 'calendar:read' },
-    { name: 'Billing',      href: '/billing',   icon: CreditCard, permission: 'billing:read' },
+    { name: 'Billing',      href: '/billing',   icon: CreditCard, permission: 'billing:read', hideForSecretary: true },
     { name: 'Users',        href: '/users',     icon: UserCog,  permission: 'admin' },
     { name: 'Settings',     href: '/settings',  icon: Settings, permission: 'admin' },
   ];
 
-  const allowedItems = navigationItems.filter(item =>
-    !item.permission || hasPermission(item.permission)
-  );
+  const allowedItems = navigationItems.filter(item => {
+    if (item.hideForSecretary && user?.role === 'secretary') return false;
+    return !item.permission || hasPermission(item.permission);
+  });
 
   return (
     <>

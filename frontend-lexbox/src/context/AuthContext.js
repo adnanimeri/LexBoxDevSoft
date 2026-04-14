@@ -40,6 +40,8 @@ const authReducer = (state, action) => {
       return { ...state, user: null, isAuthenticated: false, loading: false };
     case 'SET_USER':
       return { ...state, user: action.payload, isAuthenticated: true, loading: false };
+    case 'SET_ORG_PERMISSIONS':
+      return { ...state, orgPermissions: action.payload };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     default:
@@ -50,8 +52,9 @@ const authReducer = (state, action) => {
 const initialState = {
   user: null,
   isAuthenticated: false,
-  loading: true, // Start with loading true
+  loading: true,
   error: null,
+  orgPermissions: {},
 };
 
 export const AuthProvider = ({ children }) => {
@@ -59,14 +62,23 @@ export const AuthProvider = ({ children }) => {
 
   // Check for existing authentication on app load
   useEffect(() => {
-    const initAuth = () => {
+    const initAuth = async () => {
       const token = localStorage.getItem('lexbox_token');
       const storedUser = localStorage.getItem('lexbox_user');
-      
+
       if (token && storedUser) {
         try {
           const user = JSON.parse(storedUser);
           dispatch({ type: 'SET_USER', payload: user });
+          // Load org-level permissions
+          try {
+            const res = await axios.get(`${API_BASE_URL}/org/permissions`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            dispatch({ type: 'SET_ORG_PERMISSIONS', payload: res.data.data || {} });
+          } catch {
+            // non-fatal — permissions default to {}
+          }
         } catch (error) {
           localStorage.removeItem('lexbox_token');
           localStorage.removeItem('lexbox_user');
@@ -76,7 +88,7 @@ export const AuthProvider = ({ children }) => {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
-    
+
     initAuth();
   }, []);
 
@@ -97,8 +109,19 @@ export const AuthProvider = ({ children }) => {
       // Store in localStorage
       localStorage.setItem('lexbox_token', token);
       localStorage.setItem('lexbox_user', JSON.stringify(user));
-      
+
       dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+
+      // Load org-level permissions
+      try {
+        const permRes = await axios.get(`${API_BASE_URL}/org/permissions`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        dispatch({ type: 'SET_ORG_PERMISSIONS', payload: permRes.data.data || {} });
+      } catch {
+        // non-fatal
+      }
+
       return { user, token };
       
     } catch (error) {
@@ -127,13 +150,13 @@ export const AuthProvider = ({ children }) => {
     // Admin has all permissions
     if (role === 'admin') return true;
 
-    // Role-based permission map (matches Summary Recommendation)
+    // Base role permissions
     const ROLE_PERMISSIONS = {
       lawyer: [
-        'clients:read', 'clients:write',
-        'dossiers:read', 'dossiers:write',
-        'documents:read', 'documents:write',
-        'timeline:read', 'timeline:write',
+        'clients:read', 'clients:write', 'clients:create', 'clients:update', 'clients:delete',
+        'dossiers:read', 'dossiers:write', 'dossiers:create', 'dossiers:update',
+        'documents:read', 'documents:write', 'documents:upload', 'documents:create', 'documents:update', 'documents:delete',
+        'timeline:read', 'timeline:write', 'timeline:create', 'timeline:update',
         'billing:read', 'billing:write',
         'calendar:read', 'calendar:write',
       ],
@@ -146,7 +169,39 @@ export const AuthProvider = ({ children }) => {
       ],
     };
 
-    return (ROLE_PERMISSIONS[role] || []).includes(permission);
+    const basePerms = ROLE_PERMISSIONS[role] || [];
+
+    // Extend secretary permissions based on org settings
+    if (role === 'secretary') {
+      const extra = [];
+      if (state.orgPermissions?.secretary_can_create_clients) {
+        extra.push(
+          'clients:create', 'clients:update', 'clients:write',
+          'dossiers:create', 'dossiers:update', 'dossiers:write',
+          'documents:create', 'documents:update', 'documents:delete', 'documents:write',
+          'timeline:create', 'timeline:update',
+        );
+      }
+      if (state.orgPermissions?.secretary_can_access_billing) {
+        extra.push('billing:read', 'billing:write');
+      }
+      return [...basePerms, ...extra].includes(permission);
+    }
+
+    return basePerms.includes(permission);
+  };
+
+  const refreshOrgPermissions = async () => {
+    const token = localStorage.getItem('lexbox_token');
+    if (!token) return;
+    try {
+      const res = await axios.get(`${API_BASE_URL}/org/permissions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      dispatch({ type: 'SET_ORG_PERMISSIONS', payload: res.data.data || {} });
+    } catch {
+      // non-fatal
+    }
   };
 
   const value = {
@@ -154,6 +209,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     hasPermission,
+    refreshOrgPermissions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

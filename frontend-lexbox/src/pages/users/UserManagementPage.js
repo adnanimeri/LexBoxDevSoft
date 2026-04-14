@@ -159,15 +159,18 @@ const UserModal = ({ user, onClose, onSaved }) => {
               {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
             </select>
             <p className="mt-1 text-xs text-gray-500">
-              {form.role === 'admin'     && 'Full access — users, settings, billing, all data.'}
-              {form.role === 'lawyer'    && 'Manages clients, dossiers, documents, billing.'}
-              {form.role === 'secretary' && 'View clients/dossiers, upload documents, manage calendar.'}
+              {{
+                admin:     'Full access — users, settings, billing, all data.',
+                lawyer:    'Manages clients, dossiers, documents, billing.',
+                secretary: 'View clients/dossiers, upload documents, manage calendar.',
+              }[form.role]}
             </p>
           </div>
           {!isEdit && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Password *</label>
               <PwField value={form.password} onChange={v => set('password', v)}
+                placeholder="Generate or type a password"
                 onGenerate={() => set('password', genPassword())} />
             </div>
           )}
@@ -582,6 +585,47 @@ const UserManagementPage = () => {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Role permissions reference */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Role Permissions</h3>
+        </div>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="text-left px-4 py-2 font-medium text-gray-500 w-1/3">Area</th>
+              <th className="px-4 py-2 font-semibold text-purple-700 text-center">Admin</th>
+              <th className="px-4 py-2 font-semibold text-blue-700 text-center">Lawyer</th>
+              <th className="px-4 py-2 font-semibold text-gray-600 text-center">Secretary</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {[
+              { area: 'Users & Settings', admin: 'Full',         lawyer: 'None',           secretary: 'None' },
+              { area: 'Clients',          admin: 'Full',         lawyer: 'Full',           secretary: 'View only' },
+              { area: 'Dossiers',         admin: 'Full',         lawyer: 'Own + assigned', secretary: 'View only' },
+              { area: 'Documents',        admin: 'Full',         lawyer: 'Full',           secretary: 'Upload only' },
+              { area: 'Timeline',         admin: 'Full',         lawyer: 'Full',           secretary: 'Create only' },
+              { area: 'Invoices',         admin: 'Full',         lawyer: 'Full',           secretary: 'None' },
+              { area: 'Calendar',         admin: 'Full',         lawyer: 'Full',           secretary: 'Full' },
+            ].map(({ area, admin, lawyer, secretary }) => (
+              <tr key={area} className="hover:bg-gray-50">
+                <td className="px-4 py-2 text-gray-600 font-medium">{area}</td>
+                {[admin, lawyer, secretary].map((val, i) => (
+                  <td key={i} className="px-4 py-2 text-center">
+                    <span className={
+                      val === 'Full'   ? 'text-green-600 font-medium' :
+                      val === 'None'   ? 'text-gray-300' :
+                                        'text-amber-600 font-medium'
+                    }>{val}</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Modals */}

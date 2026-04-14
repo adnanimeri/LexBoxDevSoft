@@ -21,6 +21,7 @@ import {
   User
 } from 'lucide-react';
 import { clientService } from '../../services/clientService';
+import apiClient from '../../services/apiService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -36,19 +37,38 @@ const ClientDetails = () => {
   const [dossierNumber, setDossierNumber] = useState('');
   const [dossierTitle, setDossierTitle] = useState('');
   const [legalIssueType, setLegalIssueType] = useState('other');
-  
+  const [assignedTo, setAssignedTo] = useState('');
+
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
 
-
-  
+  // Fetch assignable users (lawyers + admins) — accessible to all roles
+  const { data: usersData } = useQuery({
+    queryKey: ['assignableUsers'],
+    queryFn: () => apiClient.get('/users/assignable').then(r => r.data),
+    staleTime: 5 * 60 * 1000
+  });
+  const assignableUsers = usersData?.data || [];
 
   // Fetch client details
   const { data: clientData, isLoading: clientLoading, error: clientError } = useQuery({
     queryKey: ['client', clientId],
     queryFn: () => clientService.getClient(clientId),
     staleTime: 60000
+  });
+
+  // Update existing dossier (reassign, status, etc.)
+  const updateDossierMutation = useMutation({
+    mutationFn: ({ dossierId, updates }) =>
+      apiClient.patch(`/dossiers/${dossierId}`, updates).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['client', clientId]);
+      showSuccess('Dossier updated');
+    },
+    onError: (error) => {
+      showError(error.response?.data?.message || 'Failed to update dossier');
+    }
   });
 
   // Assign dossier mutation
@@ -60,6 +80,7 @@ const ClientDetails = () => {
       setShowDossierModal(false);
       setDossierNumber('');
       setDossierTitle('');
+      setAssignedTo('');
     },
     onError: (error) => {
       showError(error.response?.data?.message || 'Failed to assign dossier');
@@ -75,7 +96,8 @@ const ClientDetails = () => {
     assignDossierMutation.mutate({
       dossier_number: dossierNumber,
       title: dossierTitle || `Case for ${client.first_name} ${client.last_name}`,
-      legal_issue_type: legalIssueType
+      legal_issue_type: legalIssueType,
+      assigned_to: assignedTo || null
     });
   };
 
@@ -227,6 +249,26 @@ const ClientDetails = () => {
                   <span className="ml-1 font-medium">{primaryDossier.priority}</span>
                 </div>
               </div>
+              {hasPermission('dossiers:update') && (
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  <span className="text-blue-600 shrink-0">Assigned to:</span>
+                  <select
+                    defaultValue={primaryDossier.assigned_to ?? ''}
+                    onChange={(e) => updateDossierMutation.mutate({
+                      dossierId: primaryDossier.id,
+                      updates: { assigned_to: e.target.value || null }
+                    })}
+                    className="border border-blue-200 rounded px-2 py-0.5 bg-white text-gray-800 text-sm focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value="">— Unassigned —</option>
+                    {assignableUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name} {u.last_name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
           
@@ -384,10 +426,28 @@ const ClientDetails = () => {
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assign To
+                  </label>
+                  <select
+                    value={assignedTo}
+                    onChange={(e) => setAssignedTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">— Unassigned —</option>
+                    {assignableUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name} {u.last_name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowDossierModal(false)}
+                    onClick={() => { setShowDossierModal(false); setAssignedTo(''); }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                   >
                     Cancel

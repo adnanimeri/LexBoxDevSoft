@@ -198,8 +198,7 @@ class EmailService {
                   <span class="value">${toEmail}</span>
                 </div>
                 <div class="cred-row" style="border-bottom:none;">
-                  <span class="label">Temporary password</span>
-                  <span class="value" style="font-family:monospace;letter-spacing:1px;">Password: ${tempPassword}</span>
+                  <span class="label">Temporary password: <span style="font-family:monospace;letter-spacing:1px;font-weight:bold;">${tempPassword}</span></span>
                 </div>
               </div>
 

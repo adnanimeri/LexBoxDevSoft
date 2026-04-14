@@ -12,7 +12,8 @@ import {
   Save,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { settingsService } from '../../services/settingsService';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,8 +32,63 @@ const SettingsPage = () => {
   const [pwLoading, setPwLoading] = useState(false);
 
   const { showSuccess, showError } = useNotification();
-  const { logout } = useAuth();
+  const { logout, orgPermissions, refreshOrgPermissions } = useAuth();
   const queryClient = useQueryClient();
+
+  // Secretary permissions (confirm gate)
+  const [secPerms, setSecPerms] = useState({
+    secretary_can_create_clients: false,
+    secretary_can_access_billing: false,
+  });
+  const [confirmText, setConfirmText] = useState({
+    secretary_can_create_clients: '',
+    secretary_can_access_billing: '',
+  });
+  const [permSaving, setPermSaving] = useState(false);
+
+  // Sync secPerms from orgPermissions when they load
+  useEffect(() => {
+    if (orgPermissions && Object.keys(orgPermissions).length > 0) {
+      setSecPerms({
+        secretary_can_create_clients: !!orgPermissions.secretary_can_create_clients,
+        secretary_can_access_billing: !!orgPermissions.secretary_can_access_billing,
+      });
+    }
+  }, [orgPermissions]);
+
+  const handlePermToggle = (key, checked) => {
+    if (!checked) {
+      // Disabling — no confirm needed
+      setSecPerms(prev => ({ ...prev, [key]: false }));
+      setConfirmText(prev => ({ ...prev, [key]: '' }));
+    } else {
+      // Enabling — require AGREE confirmation
+      setSecPerms(prev => ({ ...prev, [key]: true }));
+    }
+  };
+
+  const handleSavePermissions = async () => {
+    // Validate: any newly-enabled permission must have "AGREE" typed
+    for (const key of ['secretary_can_create_clients', 'secretary_can_access_billing']) {
+      if (secPerms[key] && !orgPermissions?.[key]) {
+        if (confirmText[key].trim().toUpperCase() !== 'AGREE') {
+          showError('You must type AGREE to enable this permission');
+          return;
+        }
+      }
+    }
+    setPermSaving(true);
+    try {
+      await apiClient.patch('/org/permissions', secPerms);
+      await refreshOrgPermissions();
+      setConfirmText({ secretary_can_create_clients: '', secretary_can_access_billing: '' });
+      showSuccess('Permissions updated');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save permissions');
+    } finally {
+      setPermSaving(false);
+    }
+  };
 
   // Fetch all settings
   const { data: settingsData, isLoading } = useQuery({
@@ -106,10 +162,11 @@ const SettingsPage = () => {
   };
 
   const tabs = [
-    { id: 'company', label: 'Company', icon: Building2 },
-    { id: 'invoice', label: 'Invoice', icon: FileText },
-    { id: 'billing', label: 'Billing', icon: DollarSign },
-    { id: 'security', label: 'Security', icon: Lock }
+    { id: 'company',     label: 'Company',     icon: Building2    },
+    { id: 'invoice',     label: 'Invoice',     icon: FileText     },
+    { id: 'billing',     label: 'Billing',     icon: DollarSign   },
+    { id: 'permissions', label: 'Permissions', icon: ShieldCheck  },
+    { id: 'security',    label: 'Security',    icon: Lock         },
   ];
 
   const settings = settingsData?.data || {};
@@ -261,6 +318,107 @@ const SettingsPage = () => {
                 Default values for billing and time tracking.
               </p>
               {(settings.billing || []).map(renderField)}
+            </div>
+          )}
+
+          {/* Permissions Tab */}
+          {activeTab === 'permissions' && (
+            <div className="max-w-2xl space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-1">Secretary Permissions</h3>
+                <p className="text-sm text-gray-500">
+                  Control what secretaries in your organisation are allowed to do. Enabling a permission requires typing <strong>AGREE</strong> to confirm.
+                </p>
+              </div>
+
+              {/* Permission: Create Clients */}
+              <div className="border border-gray-200 rounded-lg p-5 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-gray-900">Allow secretary to create &amp; edit clients</p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Secretary will be able to add new clients, edit client details, and assign a dossier (including assigning it to a lawyer or admin).
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={secPerms.secretary_can_create_clients}
+                      onChange={(e) => handlePermToggle('secretary_can_create_clients', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+                  </label>
+                </div>
+
+                {secPerms.secretary_can_create_clients && !orgPermissions?.secretary_can_create_clients && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-sm text-amber-800 mb-2">
+                      Type <strong>AGREE</strong> below to confirm you want to grant this permission to all secretaries.
+                    </p>
+                    <input
+                      type="text"
+                      value={confirmText.secretary_can_create_clients}
+                      onChange={(e) => setConfirmText(prev => ({ ...prev, secretary_can_create_clients: e.target.value }))}
+                      placeholder="Type AGREE to confirm"
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 text-sm"
+                    />
+                  </div>
+                )}
+
+                {orgPermissions?.secretary_can_create_clients && (
+                  <p className="text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded-lg">Currently enabled</p>
+                )}
+              </div>
+
+              {/* Permission: Billing */}
+              <div className="border border-gray-200 rounded-lg p-5 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-gray-900">Allow secretary to access client-level billing</p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Secretary will be able to view invoices, create invoices, download PDFs, and send invoices to clients from inside a client's dossier. The global Billing page remains restricted to lawyers and admins.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={secPerms.secretary_can_access_billing}
+                      onChange={(e) => handlePermToggle('secretary_can_access_billing', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+                  </label>
+                </div>
+
+                {secPerms.secretary_can_access_billing && !orgPermissions?.secretary_can_access_billing && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-sm text-amber-800 mb-2">
+                      Type <strong>AGREE</strong> below to confirm you want to grant this permission to all secretaries.
+                    </p>
+                    <input
+                      type="text"
+                      value={confirmText.secretary_can_access_billing}
+                      onChange={(e) => setConfirmText(prev => ({ ...prev, secretary_can_access_billing: e.target.value }))}
+                      placeholder="Type AGREE to confirm"
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 text-sm"
+                    />
+                  </div>
+                )}
+
+                {orgPermissions?.secretary_can_access_billing && (
+                  <p className="text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded-lg">Currently enabled</p>
+                )}
+              </div>
+
+              <button
+                onClick={handleSavePermissions}
+                disabled={permSaving}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {permSaving ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Save Permissions
+              </button>
             </div>
           )}
 
