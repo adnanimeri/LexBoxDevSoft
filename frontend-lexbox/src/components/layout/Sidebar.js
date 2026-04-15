@@ -12,6 +12,7 @@ import {
   Settings,
   CreditCard,
   Shield,
+  FileText,
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +31,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Clients',      href: '/clients',   icon: Users,    permission: 'clients:read' },
     { name: 'Calendar',     href: '/calendar',  icon: Calendar, permission: 'calendar:read' },
     { name: 'Billing',      href: '/billing',   icon: CreditCard, permission: 'billing:read', hideForSecretary: true },
+    { name: 'Templates',    href: '/templates', icon: FileText, permission: 'clients:delete', hideForSecretary: true },
     { name: 'Users',        href: '/users',     icon: UserCog,  permission: 'admin' },
     { name: 'Settings',     href: '/settings',  icon: Settings, permission: 'admin' },
   ];

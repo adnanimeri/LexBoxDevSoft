@@ -15,8 +15,9 @@ const DocumentPreviewModal = ({ isOpen, onClose, document: doc }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const canPreview = doc?.mime_type === 'application/pdf' || 
-                    doc?.mime_type?.startsWith('image/');
+  const canPreview = doc?.mime_type === 'application/pdf' ||
+                    doc?.mime_type?.startsWith('image/') ||
+                    doc?.mime_type === 'text/html';
 
   useEffect(() => {
     if (isOpen && doc && canPreview) {
@@ -114,7 +115,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document: doc }) => {
                 <LoadingSpinner size="lg" />
               ) : canPreview && previewUrl ? (
                 <div className="w-full h-full">
-                  {doc.mime_type === 'application/pdf' ? (
+                  {doc.mime_type === 'application/pdf' || doc.mime_type === 'text/html' ? (
                     <iframe
                       src={previewUrl}
                       className="w-full h-full border-0"

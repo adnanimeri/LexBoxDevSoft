@@ -22,6 +22,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import UserManagementPage from './pages/users/UserManagementPage';
 import GlobalBilling from './pages/billing/GlobalBilling';
 import CalendarPage from './pages/calendar/CalendarPage';
+import TemplatesPage from './pages/templates/TemplatesPage';
 
 // Styles
 import './styles/globals.css';
@@ -134,6 +135,14 @@ function App() {
                   <ProtectedRoute requiredRole="admin">
                     <Layout>
                       <UserManagementPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/templates" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <TemplatesPage />
                     </Layout>
                   </ProtectedRoute>
                 } />

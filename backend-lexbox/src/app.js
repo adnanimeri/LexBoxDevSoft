@@ -14,6 +14,7 @@ const superadminRoutes = require('./routes/superadmin.routes');
 const orgRoutes = require('./routes/org.routes');
 const calendarRoutes = require('./routes/calendar.routes');
 const userRoutes = require('./routes/user.routes');
+const templateRoutes = require('./routes/template.routes');
 
 
 
@@ -66,6 +67,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/templates', templateRoutes);
 app.use('/api', billingRoutes);
 
 // 404 Handler

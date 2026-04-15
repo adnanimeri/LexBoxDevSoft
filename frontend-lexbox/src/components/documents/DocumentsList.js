@@ -4,12 +4,12 @@
 // src/components/documents/DocumentsList.js
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Upload, 
-  FileText, 
-  Download, 
-  Eye, 
-  Trash2, 
+import {
+  Upload,
+  FileText,
+  Download,
+  Eye,
+  Trash2,
   Edit,
   Search,
   File,
@@ -17,9 +17,12 @@ import {
   Archive,
   Grid,
   List,
-  Lock
+  Lock,
+  Wand2,
+  X
 } from 'lucide-react';
 import { documentService } from '../../services/documentService';
+import { templateService } from '../../services/templateService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -38,10 +41,40 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [generateFormat, setGenerateFormat] = useState('pdf');
+  const [generateEncrypt, setGenerateEncrypt] = useState(false);
 
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
+
+  // Fetch available templates for "Generate from Template"
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: templateService.getTemplates,
+    staleTime: 60000,
+    enabled: !!dossierId
+  });
+  const templates = templatesData?.data || [];
+
+  // Generate document from template mutation
+  const generateMutation = useMutation({
+    mutationFn: ({ templateId, dossierId: dId, format, encrypt }) =>
+      templateService.generateDocument(templateId, dId, format, encrypt),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['documents', dossierId]);
+      showSuccess('Document generated successfully');
+      setShowTemplateModal(false);
+      setSelectedTemplateId('');
+      setGenerateFormat('pdf');
+      setGenerateEncrypt(false);
+    },
+    onError: (err) => {
+      showError(err.response?.data?.message || 'Failed to generate document');
+    }
+  });
 
   // Fetch documents
   const { data: documentsData, isLoading, error } = useQuery({
@@ -240,6 +273,17 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                 </option>
               ))}
             </select>
+          )}
+
+          {/* Generate from Template button */}
+          {canUpload && hasPermission('documents:create') && templates.length > 0 && (
+            <button
+              onClick={() => setShowTemplateModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
+            >
+              <Wand2 className="h-4 w-4 mr-2" />
+              Generate
+            </button>
           )}
 
           {/* Upload button */}
@@ -494,6 +538,110 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Generate from Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTemplateModal(false)}>
+          <div className="absolute inset-0 bg-black bg-opacity-50" />
+          <div
+            className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-blue-600" />
+                Generate from Template
+              </h2>
+              <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Select a template to generate a pre-filled document into this dossier.
+              </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {templates.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTemplateId(String(t.id))}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                      selectedTemplateId === String(t.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-gray-900">{t.title}</p>
+                    {t.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{t.description}</p>
+                    )}
+                    <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                      {t.category}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {/* Format selector */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Output Format</label>
+                <div className="flex gap-3">
+                  {[
+                    { value: 'pdf',  label: 'PDF',  hint: 'Previewable in browser' },
+                    { value: 'docx', label: 'DOCX', hint: 'Editable in Word' },
+                  ].map(f => (
+                    <button
+                      key={f.value}
+                      type="button"
+                      onClick={() => setGenerateFormat(f.value)}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                        generateFormat === f.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                      }`}
+                    >
+                      <span className="font-medium">{f.label}</span>
+                      <span className="block text-xs text-gray-400 mt-0.5">{f.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Encryption toggle */}
+              <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={generateEncrypt}
+                  onChange={e => setGenerateEncrypt(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">Encrypt document (AES-256)</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    Document will be encrypted at rest. Marked confidential automatically.
+                    Download and preview still work transparently.
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => { setShowTemplateModal(false); setSelectedTemplateId(''); setGenerateFormat('pdf'); setGenerateEncrypt(false); }}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => generateMutation.mutate({ templateId: selectedTemplateId, dossierId, format: generateFormat, encrypt: generateEncrypt })}
+                  disabled={!selectedTemplateId || generateMutation.isPending}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {generateMutation.isPending ? 'Generating…' : `Generate ${generateFormat.toUpperCase()}`}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
