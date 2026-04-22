@@ -69,15 +69,32 @@ export const AuthProvider = ({ children }) => {
       if (token && storedUser) {
         try {
           const user = JSON.parse(storedUser);
-          dispatch({ type: 'SET_USER', payload: user });
-          // Load org-level permissions
-          try {
-            const res = await axios.get(`${API_BASE_URL}/org/permissions`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            dispatch({ type: 'SET_ORG_PERMISSIONS', payload: res.data.data || {} });
-          } catch {
-            // non-fatal — permissions default to {}
+
+          // For non-super-admin users, validate the token against the backend
+          // before treating them as authenticated. A 401/403 means the org
+          // was deleted/suspended — clear the stale session immediately.
+          if (user?.role !== 'super_admin') {
+            try {
+              const res = await axios.get(`${API_BASE_URL}/org/permissions`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              dispatch({ type: 'SET_USER', payload: user });
+              dispatch({ type: 'SET_ORG_PERMISSIONS', payload: res.data.data || {} });
+            } catch (permErr) {
+              const status = permErr.response?.status;
+              if (status === 401 || status === 403) {
+                // Stale or invalid session — force logout
+                localStorage.removeItem('lexbox_token');
+                localStorage.removeItem('lexbox_user');
+                dispatch({ type: 'SET_LOADING', payload: false });
+                return;
+              }
+              // Network error or other non-auth failure — still log in, skip permissions
+              dispatch({ type: 'SET_USER', payload: user });
+            }
+          } else {
+            // super_admin — just restore from storage, no org check needed
+            dispatch({ type: 'SET_USER', payload: user });
           }
         } catch (error) {
           localStorage.removeItem('lexbox_token');

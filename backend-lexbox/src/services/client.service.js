@@ -15,9 +15,10 @@ class ClientService {
       organization_id = null
     } = filters;
 
-    const where = {};
+    if (!organization_id) throw new Error('organization_id is required');
 
-    if (organization_id) where.organization_id = organization_id;
+    const where = { organization_id };
+
     if (status && status !== 'all') where.status = status;
 
     if (search) {
@@ -63,8 +64,8 @@ class ClientService {
   }
 
   async getClientById(clientId, organization_id = null) {
-    const where = { id: clientId };
-    if (organization_id) where.organization_id = organization_id;
+    if (!organization_id) throw new Error('organization_id is required');
+    const where = { id: clientId, organization_id };
 
     const client = await Client.findOne({
       where,
@@ -125,8 +126,8 @@ class ClientService {
   }
 
   async updateClient(clientId, updateData, userId = null, organization_id = null) {
-    const where = { id: clientId };
-    if (organization_id) where.organization_id = organization_id;
+    if (!organization_id) throw new Error('organization_id is required');
+    const where = { id: clientId, organization_id };
 
     const client = await Client.findOne({ where });
     if (!client) throw new Error('Client not found');
@@ -138,8 +139,8 @@ class ClientService {
   }
 
   async archiveClient(clientId, userId = null, organization_id = null) {
-    const where = { id: clientId };
-    if (organization_id) where.organization_id = organization_id;
+    if (!organization_id) throw new Error('organization_id is required');
+    const where = { id: clientId, organization_id };
 
     const client = await Client.findOne({ where });
     if (!client) throw new Error('Client not found');
@@ -154,8 +155,8 @@ class ClientService {
   }
 
   async deleteClient(clientId, organization_id = null) {
-    const where = { id: clientId };
-    if (organization_id) where.organization_id = organization_id;
+    if (!organization_id) throw new Error('organization_id is required');
+    const where = { id: clientId, organization_id };
 
     const client = await Client.findOne({ where });
     if (!client) throw new Error('Client not found');
@@ -168,10 +169,8 @@ class ClientService {
     const transaction = await sequelize.transaction();
 
     try {
-      const where = { id: clientId };
-      if (organization_id) where.organization_id = organization_id;
-
-      const client = await Client.findOne({ where });
+      if (!organization_id) throw new Error('organization_id is required');
+      const client = await Client.findOne({ where: { id: clientId, organization_id } });
       if (!client) throw new Error('Client not found');
 
       const existingDossier = await Dossier.findOne({
@@ -208,7 +207,8 @@ class ClientService {
         { email: { [Op.iLike]: `%${searchTerm}%` } }
       ]
     };
-    if (organization_id) where.organization_id = organization_id;
+    if (!organization_id) throw new Error('organization_id is required');
+    where.organization_id = organization_id;
 
     return await Client.findAll({
       where,
@@ -219,7 +219,8 @@ class ClientService {
   }
 
   async getClientStats(organization_id = null) {
-    const orgWhere = organization_id ? { organization_id } : {};
+    if (!organization_id) throw new Error('organization_id is required');
+    const orgWhere = { organization_id };
 
     const [totalClients, activeClients, archivedClients] = await Promise.all([
       Client.count({ where: orgWhere }),
@@ -254,7 +255,8 @@ class ClientService {
   }
 
   async getRecentClients(limit = 5, organization_id = null) {
-    const where = organization_id ? { organization_id } : {};
+    if (!organization_id) throw new Error('organization_id is required');
+    const where = { organization_id };
 
     return await Client.findAll({
       where,

@@ -1,5 +1,6 @@
 const { verifyAccessToken } = require('../utils/jwt.util');
 const User = require('../models/User');
+const Organization = require('../models/Organization');
 
 /**
  * Authenticate user with JWT token
@@ -35,6 +36,40 @@ const authenticate = async (req, res, next) => {
           message: 'User not found or inactive'
         }
       });
+    }
+
+    // Non-super-admin users must belong to an active organization
+    if (user.role !== 'super_admin') {
+      if (!user.organization_id) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'NO_ORGANIZATION',
+            message: 'Your account is not linked to any organization. Please contact support.'
+          }
+        });
+      }
+      const org = await Organization.findByPk(user.organization_id, {
+        attributes: ['id', 'status']
+      });
+      if (!org || org.status === 'deleted') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'ORG_NOT_FOUND',
+            message: 'Your organization no longer exists. Please register a new account.'
+          }
+        });
+      }
+      if (org.status === 'suspended') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'ORG_SUSPENDED',
+            message: 'Your organization has been suspended. Please contact support.'
+          }
+        });
+      }
     }
 
     // Attach user to request

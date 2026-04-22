@@ -20,7 +20,8 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  
+  const [orgError, setOrgError] = useState(null);
+
   const { login, isAuthenticated, loading, user } = useAuth();
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
@@ -81,11 +82,22 @@ const Login = () => {
     
     if (!validateForm()) return;
     
+    setOrgError(null);
     try {
       await login(formData.email, formData.password);
       showSuccess('Login successful!');
     } catch (error) {
-      showError(error.message || 'Login failed. Please try again.');
+      const msg = error.message || '';
+      if (
+        msg.includes('organization no longer exists') ||
+        msg.includes('not linked to any organization') ||
+        msg.includes('suspended') ||
+        msg.includes('pending review')
+      ) {
+        setOrgError(msg);
+      } else {
+        showError(msg || 'Login failed. Please try again.');
+      }
     }
   };
 
@@ -110,6 +122,20 @@ const Login = () => {
             Legal Document Management System
           </p>
         </div>
+
+        {/* Org-level error banner */}
+        {orgError && (
+          <div className="rounded-md bg-red-50 border border-red-200 p-4">
+            <p className="text-sm text-red-700">{orgError}</p>
+            {!orgError.includes('suspended') && !orgError.includes('pending review') && (
+              <p className="mt-2 text-sm text-red-700">
+                <Link to="/register" className="font-medium underline hover:text-red-900">
+                  Register a new account
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Login form */}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

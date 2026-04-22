@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Organization = require('../models/Organization');
+const { OrganizationRequest } = require('../models');
 const { generateTokenPair } = require('../utils/jwt.util');
 
 /**
@@ -60,6 +61,30 @@ const login = async (req, res, next) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user || !user.is_active) {
+      // Try to give a more helpful message when the account is gone due to org deletion
+      const orgRequest = await OrganizationRequest.findOne({
+        where: { contact_email: email },
+        order: [['updated_at', 'DESC']]
+      });
+      if (orgRequest?.status === 'pending') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'REGISTRATION_PENDING',
+            message: 'Your registration request is pending review. We will contact you soon with your login credentials.'
+          }
+        });
+      }
+      // approved request but no user = organization was removed, account is gone
+      if (orgRequest?.status === 'approved') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'ORG_NOT_FOUND',
+            message: 'Your organization no longer exists. Please register a new account.'
+          }
+        });
+      }
       return res.status(401).json({
         success: false,
         error: {
@@ -82,12 +107,30 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Check if the user's organization is suspended
-    if (user.organization_id) {
+    // Check if the user's organization exists and is active (non-super-admin only)
+    if (user.role !== 'super_admin') {
+      if (!user.organization_id) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'NO_ORGANIZATION',
+            message: 'Your account is not linked to any organization. Please register a new account.'
+          }
+        });
+      }
       const org = await Organization.findByPk(user.organization_id, {
-        attributes: ['status']
+        attributes: ['id', 'status']
       });
-      if (org && org.status === 'suspended') {
+      if (!org || org.status === 'deleted') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'ORG_NOT_FOUND',
+            message: 'Your organization no longer exists. Please register a new account.'
+          }
+        });
+      }
+      if (org.status === 'suspended') {
         return res.status(403).json({
           success: false,
           error: {

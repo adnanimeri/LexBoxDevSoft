@@ -90,11 +90,51 @@ const SettingsPage = () => {
     }
   };
 
-  // Fetch all settings
-  const { data: settingsData, isLoading } = useQuery({
+  // ── Org profile (Company tab) ─────────────────────────────────
+  const [orgForm, setOrgForm] = useState({
+    name: '', email: '', phone: '', address: '', website: '', tax_id: ''
+  });
+  const [orgSaving, setOrgSaving] = useState(false);
+
+  const { data: orgProfileData, isLoading: orgLoading } = useQuery({
+    queryKey: ['orgProfile'],
+    queryFn: () => apiClient.get('/org/profile').then(r => r.data)
+  });
+
+  useEffect(() => {
+    if (orgProfileData?.data) {
+      const d = orgProfileData.data;
+      setOrgForm({
+        name:    d.name    || '',
+        email:   d.email   || '',
+        phone:   d.phone   || '',
+        address: d.address || '',
+        website: d.website || '',
+        tax_id:  d.tax_id  || '',
+      });
+    }
+  }, [orgProfileData]);
+
+  const handleOrgSave = async () => {
+    setOrgSaving(true);
+    try {
+      await apiClient.patch('/org/profile', orgForm);
+      queryClient.invalidateQueries(['orgProfile']);
+      showSuccess('Company information saved');
+    } catch (err) {
+      showError(err.response?.data?.message || 'Failed to save company information');
+    } finally {
+      setOrgSaving(false);
+    }
+  };
+
+  // ── Other settings (invoice, billing tabs) ────────────────────
+  const { data: settingsData, isLoading: settingsLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => settingsService.getAll()
   });
+
+  const isLoading = orgLoading || settingsLoading;
 
   // Populate form data when settings are loaded
   useEffect(() => {
@@ -248,18 +288,20 @@ const SettingsPage = () => {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600">Configure your organization settings</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={updateMutation.isPending}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          {updateMutation.isPending ? (
-            <LoadingSpinner size="sm" className="mr-2" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
-          Save Settings
-        </button>
+        {activeTab !== 'company' && activeTab !== 'permissions' && activeTab !== 'security' && (
+          <button
+            onClick={handleSave}
+            disabled={updateMutation.isPending}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {updateMutation.isPending ? (
+              <LoadingSpinner size="sm" className="mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Settings
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -288,14 +330,58 @@ const SettingsPage = () => {
 
         {/* Tab Content */}
         <div className="p-6">
-          {/* Company Settings */}
+          {/* Company Settings — reads/writes directly from/to the Organisation record */}
           {activeTab === 'company' && (
             <div className="max-w-2xl">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Company Information</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Company Information</h3>
               <p className="text-sm text-gray-500 mb-6">
-                This information appears on invoices and official documents.
+                This information appears on invoices and generated documents. Only fields you fill in are stored.
               </p>
-              {(settings.company || []).map(renderField)}
+
+              <div className="space-y-4">
+                {[
+                  { key: 'name',    label: 'Company Name',       placeholder: 'e.g. Doe & Partners Law Firm',  required: true },
+                  { key: 'email',   label: 'Company Email',      placeholder: 'e.g. contact@yourfirm.com' },
+                  { key: 'phone',   label: 'Phone Number',       placeholder: 'e.g. +352 123 456 789' },
+                  { key: 'address', label: 'Company Address',    placeholder: 'e.g. 12 Rue de la Loi, Luxembourg', textarea: true },
+                  { key: 'website', label: 'Website',            placeholder: 'e.g. https://yourfirm.com' },
+                  { key: 'tax_id',  label: 'Tax ID / VAT Number', placeholder: 'e.g. LU12345678' },
+                ].map(field => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+                    </label>
+                    {field.textarea ? (
+                      <textarea
+                        rows={3}
+                        value={orgForm[field.key]}
+                        onChange={e => setOrgForm(p => ({ ...p, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={orgForm[field.key]}
+                        onChange={e => setOrgForm(p => ({ ...p, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6">
+                <button
+                  onClick={handleOrgSave}
+                  disabled={orgSaving}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {orgSaving ? <LoadingSpinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Company Info
+                </button>
+              </div>
             </div>
           )}
 
