@@ -175,9 +175,9 @@ class EmailService {
             .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { padding: 24px; background: #f9fafb; }
             .credentials { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
-            .cred-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
-            .label { color: #6b7280; font-size: 14px; }
-            .value { font-weight: bold; font-size: 14px; }
+            .cred-row { display: table; width: 100%; padding: 6px 0; border-bottom: 1px solid #f3f4f6; border-collapse: collapse; }
+            .label { display: table-cell; color: #6b7280; font-size: 14px; width: 40%; padding-right: 12px; }
+            .value { display: table-cell; font-weight: bold; font-size: 14px; }
             .btn { display: inline-block; background: #2563eb; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0; }
             .footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 12px; }
           </style>
@@ -194,7 +194,7 @@ class EmailService {
               <div class="credentials">
                 <p style="margin:0 0 12px;font-weight:bold;color:#111827;">Your login credentials</p>
                 <div class="cred-row">
-                  <span class="label">Email</span>
+                  <span class="label">Email:</span>
                   <span class="value">${toEmail}</span>
                 </div>
                 <div class="cred-row" style="border-bottom:none;">

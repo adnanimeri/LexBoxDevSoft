@@ -2,7 +2,7 @@
 // CLIENT LIST PAGE
 // ===================================================================
 // src/pages/clients/ClientList.js
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, Eye, Edit, Archive } from 'lucide-react';
@@ -18,9 +18,11 @@ import ConfirmModal from '../../components/common/ConfirmModal';
  * Displays all clients with quick actions and status indicators
  */
 const ClientList = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('');   // instant — controls the input
+  const [searchTerm, setSearchTerm] = useState('');   // debounced — drives the API query
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const searchRef = useRef(null);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
   const [confirmModal, setConfirmModal] = useState(null);
@@ -28,6 +30,15 @@ const ClientList = () => {
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
+
+  // Debounce inputValue → searchTerm (400ms), reset page on new search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(inputValue);
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputValue]);
 
   // Fetch clients with search and pagination
   const { data: clientsData, isLoading, error, refetch } = useQuery({
@@ -96,13 +107,8 @@ const ClientList = () => {
     return null;
   };
 
-  if (isLoading && !clientsData) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  // Don't early-return with a spinner — it unmounts the input and loses focus.
+  // Show inline loading instead (see below).
 
   if (error) {
     return (
@@ -121,6 +127,7 @@ const ClientList = () => {
   const clients = clientsData?.data || [];
   const totalPages = clientsData?.pagination?.pages || 1;
   const totalClients = clientsData?.pagination?.total || 0;
+  const isInitialLoading = isLoading && !clientsData && !inputValue;
 
   return (
     <div className="space-y-6">
@@ -152,12 +159,18 @@ const ClientList = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
+                ref={searchRef}
                 type="text"
                 placeholder="Search clients by name, email, or dossier number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              {isLoading && inputValue && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -179,7 +192,11 @@ const ClientList = () => {
 
       {/* Client table */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        {clients.length === 0 ? (
+        {isInitialLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : clients.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">No clients found</p>
             {hasPermission('clients:create') && (

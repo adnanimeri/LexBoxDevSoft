@@ -2,7 +2,7 @@
 // DOCUMENTS LIST COMPONENT
 // ===================================================================
 // src/components/documents/DocumentsList.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload,
@@ -19,10 +19,12 @@ import {
   List,
   Lock,
   Wand2,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { documentService } from '../../services/documentService';
 import { templateService } from '../../services/templateService';
+import { settingsService } from '../../services/settingsService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -45,10 +47,27 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [generateFormat, setGenerateFormat] = useState('pdf');
   const [generateEncrypt, setGenerateEncrypt] = useState(false);
+  const [createTimelineEntry, setCreateTimelineEntry] = useState(false);
+  const [timelineTitle, setTimelineTitle] = useState('');
+  const [isBillable, setIsBillable] = useState(false);
+  const [hoursWorked, setHoursWorked] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('150');
 
   const { hasPermission } = useAuth();
   const { showSuccess, showError } = useNotification();
   const queryClient = useQueryClient();
+
+  // Fetch billing defaults for pre-filling hourly rate
+  const { data: defaultsData } = useQuery({
+    queryKey: ['billing-defaults'],
+    queryFn: () => settingsService.getBillingDefaults(),
+    staleTime: 60000
+  });
+  useEffect(() => {
+    if (defaultsData?.data?.default_hourly_rate) {
+      setHourlyRate(String(defaultsData.data.default_hourly_rate));
+    }
+  }, [defaultsData]);
 
   // Fetch available templates for "Generate from Template"
   const { data: templatesData } = useQuery({
@@ -59,22 +78,39 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
   });
   const templates = templatesData?.data || [];
 
+  const resetTemplateModal = () => {
+    setShowTemplateModal(false);
+    setSelectedTemplateId('');
+    setGenerateFormat('pdf');
+    setGenerateEncrypt(false);
+    setCreateTimelineEntry(false);
+    setTimelineTitle('');
+    setIsBillable(false);
+    setHoursWorked('');
+  };
+
   // Generate document from template mutation
   const generateMutation = useMutation({
     mutationFn: ({ templateId, dossierId: dId, format, encrypt }) =>
-      templateService.generateDocument(templateId, dId, format, encrypt),
+      templateService.generateDocument(templateId, dId, format, encrypt, {
+        create_timeline_entry: createTimelineEntry,
+        timeline_title: timelineTitle || undefined,
+        is_billable: isBillable,
+        hours_worked: parseFloat(hoursWorked) || 0,
+        hourly_rate: parseFloat(hourlyRate) || 0
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries(['documents', dossierId]);
-      showSuccess('Document generated successfully');
-      setShowTemplateModal(false);
-      setSelectedTemplateId('');
-      setGenerateFormat('pdf');
-      setGenerateEncrypt(false);
+      queryClient.invalidateQueries(['timeline', dossierId]);
+      showSuccess('Document generated successfully' + (createTimelineEntry ? ' — timeline entry created' : ''));
+      resetTemplateModal();
     },
     onError: (err) => {
       showError(err.response?.data?.message || 'Failed to generate document');
     }
   });
+
+  const billingAmount = (parseFloat(hoursWorked) || 0) * (parseFloat(hourlyRate) || 0);
 
   // Fetch documents
   const { data: documentsData, isLoading, error } = useQuery({
@@ -543,10 +579,10 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
 
       {/* Generate from Template Modal */}
       {showTemplateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTemplateModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={resetTemplateModal}>
           <div className="absolute inset-0 bg-black bg-opacity-50" />
           <div
-            className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4"
+            className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -554,7 +590,7 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                 <Wand2 className="h-5 w-5 text-blue-600" />
                 Generate from Template
               </h2>
-              <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={resetTemplateModal} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -625,9 +661,89 @@ const DocumentsList = ({ dossierId, canUpload = false }) => {
                 </div>
               </label>
 
+              {/* Timeline integration */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-center mb-3">
+                  <input
+                    type="checkbox"
+                    id="genCreateTimeline"
+                    checked={createTimelineEntry}
+                    onChange={e => setCreateTimelineEntry(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="genCreateTimeline" className="ml-2 text-sm font-medium text-gray-700 flex items-center">
+                    <Clock className="h-4 w-4 text-blue-500 mr-1" />
+                    Create Timeline Entry
+                  </label>
+                </div>
+
+                {createTimelineEntry && (
+                  <div className="ml-6 space-y-3 p-4 bg-blue-50 rounded-lg">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Timeline Title</label>
+                      <input
+                        type="text"
+                        value={timelineTitle}
+                        onChange={e => setTimelineTitle(e.target.value)}
+                        placeholder="e.g., Generated client agreement"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                      />
+                    </div>
+
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="genIsBillable"
+                        checked={isBillable}
+                        onChange={e => setIsBillable(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <label htmlFor="genIsBillable" className="ml-2 text-sm text-gray-700">
+                        This activity is billable
+                      </label>
+                    </div>
+
+                    {isBillable && (
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
+                          <input
+                            type="number"
+                            step="0.25"
+                            min="0"
+                            value={hoursWorked}
+                            onChange={e => setHoursWorked(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Rate (€)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={hourlyRate}
+                            onChange={e => setHourlyRate(e.target.value)}
+                            placeholder="150"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Total</label>
+                          <div className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium text-sm">
+                            €{billingAmount.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-3 pt-2">
                 <button
-                  onClick={() => { setShowTemplateModal(false); setSelectedTemplateId(''); setGenerateFormat('pdf'); setGenerateEncrypt(false); }}
+                  onClick={resetTemplateModal}
                   className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
                 >
                   Cancel

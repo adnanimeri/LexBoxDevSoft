@@ -4,7 +4,7 @@
 // src/components/dashboard/QuickActions.js
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Upload, Search, FileText } from 'lucide-react';
+import { Plus, Search, CreditCard, Calendar, FileText, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -24,28 +24,44 @@ const QuickActions = () => {
       permission: 'clients:create'
     },
     {
-      name: 'Upload Documents',
-      description: 'Upload client documents',
-      icon: Upload,
-      href: '/documents/upload',
-      color: 'bg-green-500 hover:bg-green-600',
-      permission: 'documents:create'
-    },
-    {
-      name: 'Search Cases',
-      description: 'Find client cases',
+      name: 'Search Clients',
+      description: 'Find clients and cases',
       icon: Search,
-      href: '/clients?search=true',
+      href: '/clients',
       color: 'bg-yellow-500 hover:bg-yellow-600',
       permission: 'clients:read'
     },
     {
-      name: 'Generate Report',
-      description: 'Create case reports',
-      icon: FileText,
-      href: '/reports/new',
+      name: 'Billing',
+      description: 'Manage invoices and payments',
+      icon: CreditCard,
+      href: '/billing',
+      color: 'bg-green-500 hover:bg-green-600',
+      permission: 'billing:read'
+    },
+    {
+      name: 'Calendar',
+      description: 'View and schedule events',
+      icon: Calendar,
+      href: '/calendar',
       color: 'bg-purple-500 hover:bg-purple-600',
-      permission: 'reports:create'
+      permission: 'calendar:read'
+    },
+    {
+      name: 'Templates',
+      description: 'Manage document templates',
+      icon: FileText,
+      href: '/templates',
+      color: 'bg-indigo-500 hover:bg-indigo-600',
+      permission: 'clients:delete'
+    },
+    {
+      name: 'Users',
+      description: 'Manage team members',
+      icon: Users,
+      href: '/users',
+      color: 'bg-gray-500 hover:bg-gray-600',
+      permission: 'clients:delete'
     },
   ];
 

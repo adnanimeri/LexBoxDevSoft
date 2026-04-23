@@ -17,7 +17,11 @@ export const templateService = {
   deleteTemplate: (id) => apiClient.delete(`/templates/${id}`).then(r => r.data),
 
   // Generate a document from a template into a dossier
-  // format: 'pdf' (default) | 'docx'   encrypt: boolean (default false)
-  generateDocument: (templateId, dossierId, format = 'pdf', encrypt = false) =>
-    apiClient.post(`/templates/${templateId}/generate`, { dossier_id: dossierId, format, encrypt }).then(r => r.data),
+  generateDocument: (templateId, dossierId, format = 'pdf', encrypt = false, timelineOpts = {}) =>
+    apiClient.post(`/templates/${templateId}/generate`, {
+      dossier_id: dossierId,
+      format,
+      encrypt,
+      ...timelineOpts
+    }).then(r => r.data),
 };
