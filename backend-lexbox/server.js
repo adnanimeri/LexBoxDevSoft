@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./src/app');
 const sequelize = require('./src/config/database');
+require('./src/models'); // ensure all models + associations are registered before sync
 
 const PORT = process.env.PORT || 3001;
 
