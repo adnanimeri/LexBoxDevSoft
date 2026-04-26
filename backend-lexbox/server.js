@@ -16,6 +16,12 @@ async function startServer() {
     await sequelize.sync({ alter: true });
     console.log('✅ Database models synchronized.');
 
+    // Ensure enum values exist (ALTER TYPE ADD VALUE IF NOT EXISTS is idempotent)
+    await sequelize.query("ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'super_admin';").catch(() => {});
+    await sequelize.query("ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'admin';").catch(() => {});
+    await sequelize.query("ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'lawyer';").catch(() => {});
+    await sequelize.query("ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'secretary';").catch(() => {});
+
     // Initialize default settings
     const settingsService = require('./src/services/settings.service');
     await settingsService.initializeDefaults();
